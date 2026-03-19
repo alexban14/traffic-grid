@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package trafficgrid;
+
+service WorkerService {
+  rpc GetStatus (WorkerRequest) returns (WorkerResponse) {}
+  rpc ExecuteTask (TaskRequest) returns (TaskResponse) {}
+}
+
+message WorkerRequest {
+  string worker_id = 1;
+}
+
+message WorkerResponse {
+  string status = 1;
+  float cpu_usage = 2;
+  float ram_usage = 3;
+}
+
+message TaskRequest {
+  string task_type = 1;
+  string target_url = 2;
+  map<string, string> parameters = 3;
+}
+
+message TaskResponse {
+  string task_id = 1;
+  bool success = 2;
+}

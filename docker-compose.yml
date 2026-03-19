@@ -1,0 +1,72 @@
+services:
+  db:
+    image: postgres:16
+    container_name: tg-db
+    environment:
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: trafficgrid
+    volumes:
+      - ./database/data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    networks:
+      - tg-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: tg-redis
+    networks:
+      - tg-network
+
+  backend:
+    build: ./backend
+    container_name: tg-backend
+    volumes:
+      - ./backend/app:/app/app
+    environment:
+      - DATABASE_URL=postgresql://admin:password@db:5432/trafficgrid
+      - REDIS_URL=redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    networks:
+      - tg-network
+
+  worker:
+    build: ./backend
+    container_name: tg-worker
+    command: celery -A app.worker.celery_app worker --loglevel=info
+    volumes:
+      - ./backend/app:/app/app
+    environment:
+      - DATABASE_URL=postgresql://admin:password@db:5432/trafficgrid
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    networks:
+      - tg-network
+
+  gateway:
+    build: ./gateway
+    container_name: tg-gateway
+    ports:
+      - "8080:8080" # SOCKS5
+      - "8081:8081" # Dashboard/API
+    networks:
+      - tg-network
+
+  frontend:
+    image: nginx:alpine
+    container_name: tg-frontend
+    volumes:
+      - ./frontend:/usr/share/nginx/html
+    ports:
+      - "80:80"
+    networks:
+      - tg-network
+
+networks:
+  tg-network:
+    driver: bridge

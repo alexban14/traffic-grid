@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrafficGrid | Control Plane</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #050505; color: #e5e5e5; }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .neon-text { color: #10b981; text-shadow: 0 0 10px rgba(16, 185, 129, 0.4); }
+        .terminal { font-family: 'JetBrains Mono', monospace; }
+    </style>
+</head>
+<body class="p-6">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-2xl font-bold tracking-tighter flex items-center gap-2">
+                    <i data-lucide="grid" class="text-emerald-500"></i>
+                    TRAFFIC<span class="text-emerald-500">GRID</span>
+                </h1>
+                <p class="text-xs text-zinc-500 uppercase tracking-widest mt-1">Autonomous Worker Orchestration</p>
+            </div>
+            <div class="flex gap-4">
+                <div class="glass px-4 py-2 rounded-lg flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span class="text-xs font-semibold">GATEWAY: ONLINE</span>
+                </div>
+                <div class="glass px-4 py-2 rounded-lg flex items-center gap-2">
+                    <i data-lucide="cpu" class="w-4 h-4 text-zinc-400"></i>
+                    <span class="text-xs font-semibold">Z420: 12% LOAD</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <div class="glass p-4 rounded-xl">
+                <p class="text-zinc-500 text-xs uppercase mb-1">Active Workers</p>
+                <p class="text-2xl font-bold">42 <span class="text-xs font-normal text-emerald-500">/ 100</span></p>
+            </div>
+            <div class="glass p-4 rounded-xl">
+                <p class="text-zinc-500 text-xs uppercase mb-1">Proxy Latency</p>
+                <p class="text-2xl font-bold">124<span class="text-xs font-normal text-zinc-400">ms</span></p>
+            </div>
+            <div class="glass p-4 rounded-xl">
+                <p class="text-zinc-500 text-xs uppercase mb-1">Total Views (24h)</p>
+                <p class="text-2xl font-bold">1.2M</p>
+            </div>
+            <div class="glass p-4 rounded-xl">
+                <p class="text-zinc-500 text-xs uppercase mb-1">Trust Score Avg</p>
+                <p class="text-2xl font-bold text-emerald-400">88%</p>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Worker List -->
+            <div class="lg:col-span-2 glass rounded-2xl overflow-hidden">
+                <div class="p-4 border-b border-white/5 flex justify-between items-center">
+                    <h2 class="font-semibold">Worker Plane</h2>
+                    <button class="text-xs bg-emerald-500/10 text-emerald-500 px-2 py-1 rounded">Deploy New Worker</button>
+                </div>
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-white/5 text-zinc-500">
+                        <tr>
+                            <th class="p-4">ID</th>
+                            <th class="p-4">Type</th>
+                            <th class="p-4">Status</th>
+                            <th class="p-4">Last Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="worker-table">
+                        <tr class="border-b border-white/5">
+                            <td class="p-4 font-mono text-zinc-400">worker-0x1a</td>
+                            <td class="p-4">LXC-Selenium</td>
+                            <td class="p-4"><span class="text-emerald-500">● RUNNING</span></td>
+                            <td class="p-4 text-zinc-500">TikTok View (0:45)</td>
+                        </tr>
+                        <tr class="border-b border-white/5">
+                            <td class="p-4 font-mono text-zinc-400">worker-0x1b</td>
+                            <td class="p-4">Physical-S24</td>
+                            <td class="p-4"><span class="text-yellow-500">● COOLING</span></td>
+                            <td class="p-4 text-zinc-500">Account Seed (Manual)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Live Logs / Control -->
+            <div class="glass rounded-2xl p-4">
+                <h2 class="font-semibold mb-4">System Logs</h2>
+                <div class="terminal bg-black/40 p-3 rounded-lg h-64 overflow-y-auto text-[10px] text-emerald-500/80 leading-relaxed">
+                    <div>[20:15:01] INFO: Gateway rotation triggered (Huawei E3372)</div>
+                    <div>[20:15:04] SUCCESS: New IP 188.24.15.122 (Orange RO)</div>
+                    <div>[20:15:10] WORKER-01: Navigation started -> tiktok.com/@user</div>
+                    <div class="animate-pulse">[20:15:12] WORKER-01: Bypassing Cloudflare Turnstile...</div>
+                </div>
+                <div class="mt-4 grid grid-cols-2 gap-2">
+                    <button class="bg-zinc-800 hover:bg-zinc-700 p-2 rounded text-xs font-semibold uppercase">Hard Reset Mesh</button>
+                    <button class="bg-emerald-600 hover:bg-emerald-500 p-2 rounded text-xs font-semibold uppercase">Flush Redis</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>
