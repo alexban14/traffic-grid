@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "traffic-grid-backend"
+version = "0.1.0"
+description = "TrafficGrid Control Plane Backend"
+authors = ["Alex Ban <alex@scaleupsolutions.ro>"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.110.0"
+uvicorn = "^0.27.1"
+sqlalchemy = "^2.0.27"
+psycopg2-binary = "^2.9.9"
+redis = "^5.0.1"
+celery = "^5.3.6"
+pydantic = "^2.6.1"
+pgvector = "^0.2.5"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
