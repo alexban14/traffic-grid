@@ -28,7 +28,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - ENV=development
     ports:
-      - "8000:8000"
+      - "18420:8000"
     depends_on:
       - db
       - redis
@@ -53,8 +53,8 @@ services:
     build: ./gateway
     container_name: tg-gateway
     ports:
-      - "8080:8080" # SOCKS5
-      - "8081:8081" # Dashboard/API
+      - "18421:8080" # SOCKS5
+      - "18422:8081" # Dashboard/API
     networks:
       - tg-network
 
@@ -64,7 +64,7 @@ services:
     volumes:
       - ./frontend:/usr/share/nginx/html
     ports:
-      - "80:80"
+      - "18423:80"
     networks:
       - tg-network
 
