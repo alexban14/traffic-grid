@@ -1,5 +1,4 @@
-from sqlalchemy import create_engine
-from sqlmodel import Session
+from sqlmodel import Session, create_engine
 from app.core.config import settings
 
 engine = create_engine(
@@ -9,6 +8,9 @@ engine = create_engine(
     max_overflow=20
 )
 
-def get_session():
+def get_db():
     with Session(engine) as session:
         yield session
+
+# Alias for compatibility
+get_session = get_db

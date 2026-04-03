@@ -2,29 +2,33 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "vector";
 
-CREATE TABLE identities (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    username VARCHAR(255),
+CREATE TABLE IF NOT EXISTS identities (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(255) UNIQUE,
     platform VARCHAR(50),
-    cookies JSONB,
-    behavioral_dna vector(1536), -- For mimicking human interaction paths
+    status VARCHAR(20) DEFAULT 'active',
+    user_agent TEXT,
+    behavioral_dna vector(1536),
     trust_score INT DEFAULT 50,
+    last_used_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE tasks (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+CREATE TABLE IF NOT EXISTS workers (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) UNIQUE,
+    type VARCHAR(50),
+    status VARCHAR(20) DEFAULT 'IDLE',
+    ip_address VARCHAR(45),
+    last_heartbeat TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS tasks (
+    id SERIAL PRIMARY KEY,
     type VARCHAR(50),
     target_url TEXT,
     status VARCHAR(20) DEFAULT 'PENDING',
     config JSONB,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE proxy_logs (
-    id SERIAL PRIMARY KEY,
-    ip_address VARCHAR(45),
-    latency_ms INT,
-    provider VARCHAR(100),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

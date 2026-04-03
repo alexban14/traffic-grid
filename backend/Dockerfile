@@ -1,44 +1,42 @@
-FROM python:3.12-slim AS builder
-
-ARG ENV=development
+FROM python:3.12-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     libpq-dev \
+    libglib2.0-0 \
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libdbus-1-3 \
+    libxcb1 \
+    libxkbcommon0 \
+    libx11-6 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libasound2 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN curl -sSL https://install.python-poetry.org | python3 -
-ENV PATH="/root/.local/bin:$PATH" \
-    POETRY_VIRTUALENVS_CREATE=false
-
 WORKDIR /app
-COPY pyproject.toml poetry.lock* ./
-RUN poetry install --no-root --no-interaction --no-ansi
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-FROM python:3.12-slim AS production
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN useradd --create-home --shell /bin/bash app
-WORKDIR /app
-
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
-
-COPY --chown=app:app ./app /app/app
-COPY --chown=app:app ./.docker/entrypoint.sh /app/entrypoint.sh
+COPY ./app /app/app
+COPY ./.docker/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
-
-USER app
 
 ENV PYTHONPATH=/app \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    ENV=production
+    PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 ENTRYPOINT ["/app/entrypoint.sh"]

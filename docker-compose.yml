@@ -1,12 +1,13 @@
 services:
   db:
-    image: postgres:16
+    image: pgvector/pgvector:pg16
     container_name: tg-db
     environment:
       POSTGRES_USER: ${DB_USER:-admin}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
       POSTGRES_DB: trafficgrid
     volumes:
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf
       - ./database/data:/var/lib/postgresql/data
       - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
     networks:
@@ -22,6 +23,7 @@ services:
     build: ./backend
     container_name: tg-backend
     volumes:
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf
       - ./backend/app:/app/app
     environment:
       - DATABASE_URL=postgresql://admin:password@db:5432/trafficgrid
@@ -40,6 +42,7 @@ services:
     container_name: tg-worker
     command: celery -A app.worker.celery_app worker --loglevel=info
     volumes:
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf
       - ./backend/app:/app/app
     environment:
       - DATABASE_URL=postgresql://admin:password@db:5432/trafficgrid
@@ -62,7 +65,8 @@ services:
     image: nginx:alpine
     container_name: tg-frontend
     volumes:
-      - ./frontend:/usr/share/nginx/html
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./frontend/dist_final:/usr/share/nginx/html
     ports:
       - "18423:80"
     networks:

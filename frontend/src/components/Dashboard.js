@@ -1,0 +1,13 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import React from "react";
+import { Activity, Shield, Users, Server } from "lucide-react";
+import { TaskWizard } from "./TaskWizard";
+import { WorkerGrid } from "./WorkerGrid";
+import { LiveConsole } from "./LiveConsole";
+import { useStats } from "../hooks/useStats";
+const StatCard = ({ title, value, icon: Icon, color, loading }) => (_jsxs("div", { className: "bg-slate-900 border border-slate-800 p-6 rounded-xl", children: [_jsxs("div", { className: "flex items-center justify-between mb-4", children: [_jsx("span", { className: "text-slate-400 text-sm font-medium", children: title }), _jsx(Icon, { className: `w-5 h-5 ${color}` })] }), _jsx("div", { className: "text-2xl font-bold", children: loading ? _jsx("div", { className: "h-8 w-16 bg-slate-800 animate-pulse rounded" }) : value })] }));
+export const Dashboard = () => {
+    const { data: stats, isLoading } = useStats();
+    return (_jsxs("div", { className: "min-h-screen bg-slate-950 text-slate-50 p-8", children: [_jsxs("header", { className: "flex justify-between items-center mb-12", children: [_jsxs("div", { children: [_jsx("h1", { className: "text-3xl font-bold", children: "TrafficGrid Control" }), _jsx("p", { className: "text-slate-500", children: "Real-time Bot Farm Orchestration" })] }), _jsx("div", { className: "flex gap-4", children: _jsxs("div", { className: "flex items-center gap-2 px-4 py-2 bg-emerald-950/30 border border-emerald-500/30 rounded-lg", children: [_jsx("div", { className: "w-2 h-2 bg-emerald-500 rounded-full animate-pulse" }), _jsx("span", { className: "text-xs text-emerald-500 font-bold uppercase tracking-wider", children: "Gateway Online" })] }) })] }), _jsxs("div", { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12", children: [_jsx(StatCard, { title: "Active Workers", value: stats?.active_workers || 0, icon: Server, color: "text-blue-500", loading: isLoading }), _jsx(StatCard, { title: "Proxy Latency", value: stats?.proxy_latency || "--", icon: Activity, color: "text-emerald-500", loading: isLoading }), _jsx(StatCard, { title: "Identities", value: stats?.total_identities || 0, icon: Users, color: "text-purple-500", loading: isLoading }), _jsx(StatCard, { title: "Success Rate", value: stats?.success_rate || "0%", icon: Shield, color: "text-amber-500", loading: isLoading })] }), _jsxs("div", { className: "grid grid-cols-1 lg:grid-cols-3 gap-8", children: [_jsxs("div", { className: "lg:col-span-1 space-y-8", children: [_jsx(TaskWizard, {}), _jsx(LiveConsole, { workerId: "S24-ULTRA-01" })] }), _jsx("div", { className: "lg:col-span-2", children: _jsx(WorkerGrid, {}) })] })] }));
+};
+//# sourceMappingURL=Dashboard.js.map

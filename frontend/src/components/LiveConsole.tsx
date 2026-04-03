@@ -1,15 +1,22 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Terminal } from 'lucide-react';
+import React, { useState, useEffect, useRef } from "react";
+import { Terminal } from "lucide-react";
 
 export const LiveConsole = ({ workerId }: { workerId: string }) => {
   const [logs, setLogs] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const ws = new WebSocket(`ws://localhost:8000/api/v1/workers/${workerId}/ws`);
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const host = window.location.hostname;
+    const port = "18420"; // Backend port
+    const ws = new WebSocket(`${protocol}//${host}:${port}/api/v1/workers/${workerId}/ws`);
     
     ws.onmessage = (event) => {
       setLogs((prev) => [...prev.slice(-49), `[${new Date().toLocaleTimeString()}] ${event.data}`]);
+    };
+
+    ws.onerror = (err) => {
+      console.error("WebSocket error:", err);
     };
 
     return () => ws.close();
@@ -30,8 +37,8 @@ export const LiveConsole = ({ workerId }: { workerId: string }) => {
       <div ref={scrollRef} className="p-4 font-mono text-[10px] space-y-1 overflow-y-auto flex-1 scrollbar-hide">
         {logs.length === 0 && <div className="text-slate-700">Waiting for worker stream...</div>}
         {logs.map((log, i) => (
-          <div key={i} className="text-emerald-500/80">
-            <span className="text-emerald-500">$</span> {log}
+          <div key={i} className="text-emerald-400/90 font-medium">
+            <span className="text-emerald-600">$</span> {log}
           </div>
         ))}
       </div>
