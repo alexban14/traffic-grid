@@ -9,7 +9,8 @@ To run the TrafficGrid infrastructure (EliteMini + Worker nodes), the network mu
 
 ## Infrastructure Setup
 For detailed configuration of the gateway and switch, refer to the global infrastructure docs in the `brainstorms` repository:
-`infrastructure/mikrotik-comprehensive-setup.md`
+https://github.com/alexban14/brainstorms/blob/main/infrastructure/mikrotik-comprehensive-setup.md
 
 ## Quick Access Configuration
-A RouterOS script is available at `infrastructure/mikrotik-setup-commands.rsc` for disaster recovery.
+A RouterOS script is available at:
+https://github.com/alexban14/brainstorms/blob/main/infrastructure/mikrotik-setup-commands.rsc
