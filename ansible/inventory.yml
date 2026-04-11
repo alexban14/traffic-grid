@@ -1,0 +1,13 @@
+all:
+  vars:
+    ansible_user: root
+    ansible_python_interpreter: /usr/bin/python3
+    trafficgrid_redis_url: "redis://10.20.20.200:6379/0"
+    trafficgrid_db_url: "postgresql://admin:password@10.20.20.200:5432/trafficgrid"
+    trafficgrid_backend_url: "http://10.20.20.200:18420"
+
+  children:
+    workers:
+      hosts:
+        tg-worker-01:
+          ansible_host: 10.10.10.x  # UPDATE with actual DHCP IP after first boot

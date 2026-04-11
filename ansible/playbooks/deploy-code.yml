@@ -1,0 +1,18 @@
+---
+- name: Deploy updated app code to workers
+  hosts: workers
+  gather_facts: false
+
+  tasks:
+    - name: Sync backend app code
+      synchronize:
+        src: "{{ playbook_dir }}/../../backend/app/"
+        dest: /opt/tg-worker/app/
+        delete: true
+        rsync_opts:
+          - "--exclude=__pycache__"
+
+    - name: Restart worker service
+      systemd:
+        name: tg-worker
+        state: restarted

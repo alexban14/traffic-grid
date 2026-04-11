@@ -1,0 +1,174 @@
+---
+- name: Provision TrafficGrid Selenium Worker
+  hosts: workers
+  gather_facts: true
+
+  vars:
+    chrome_version: "stable"
+    python_packages:
+      - celery[redis]
+      - redis
+      - playwright
+      - playwright-stealth
+      - sqlmodel
+      - sqlalchemy
+      - psycopg2-binary
+      - pgvector
+      - pydantic
+      - pydantic-settings
+
+  tasks:
+    # ── System packages ──────────────────────────────────────
+    - name: Update apt cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install system dependencies
+      apt:
+        name:
+          - python3
+          - python3-pip
+          - python3-venv
+          - xvfb
+          - wget
+          - gnupg2
+          - curl
+          - unzip
+          - fonts-liberation
+          - libnss3
+          - libnspr4
+          - libatk1.0-0
+          - libatk-bridge2.0-0
+          - libcups2
+          - libdrm2
+          - libdbus-1-3
+          - libxcb1
+          - libxkbcommon0
+          - libx11-6
+          - libxcomposite1
+          - libxdamage1
+          - libxext6
+          - libxfixes3
+          - libxrandr2
+          - libgbm1
+          - libpango-1.0-0
+          - libcairo2
+          - libasound2t64
+          - libglib2.0-0
+        state: present
+
+    # ── Google Chrome ────────────────────────────────────────
+    - name: Add Google Chrome signing key
+      shell: |
+        wget -qO- https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg
+      args:
+        creates: /usr/share/keyrings/google-chrome.gpg
+
+    - name: Add Google Chrome repository
+      copy:
+        content: "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main"
+        dest: /etc/apt/sources.list.d/google-chrome.list
+
+    - name: Install Google Chrome
+      apt:
+        name: google-chrome-stable
+        state: present
+        update_cache: true
+
+    - name: Verify Chrome installation
+      command: google-chrome --version
+      register: chrome_ver
+      changed_when: false
+
+    - name: Show Chrome version
+      debug:
+        msg: "{{ chrome_ver.stdout }}"
+
+    # ── Python environment ───────────────────────────────────
+    - name: Create worker venv
+      command: python3 -m venv /opt/tg-worker/venv
+      args:
+        creates: /opt/tg-worker/venv/bin/python
+
+    - name: Install Python packages
+      pip:
+        name: "{{ python_packages }}"
+        virtualenv: /opt/tg-worker/venv
+        state: present
+
+    - name: Install Playwright browsers
+      shell: /opt/tg-worker/venv/bin/playwright install chromium --with-deps
+      args:
+        creates: /root/.cache/ms-playwright
+
+    # ── Worker configuration ─────────────────────────────────
+    - name: Create worker config directory
+      file:
+        path: /opt/tg-worker/config
+        state: directory
+
+    - name: Write worker environment file
+      copy:
+        content: |
+          REDIS_URL={{ trafficgrid_redis_url }}
+          DATABASE_URL={{ trafficgrid_db_url }}
+          BACKEND_URL={{ trafficgrid_backend_url }}
+          WORKER_NAME={{ inventory_hostname }}
+          WORKER_TYPE=LXC-Selenium
+        dest: /opt/tg-worker/config/.env
+
+    - name: Write Celery worker start script
+      copy:
+        content: |
+          #!/bin/bash
+          set -e
+          source /opt/tg-worker/venv/bin/activate
+          export $(cat /opt/tg-worker/config/.env | xargs)
+          exec celery -A app.core.celery_app:celery_app worker \
+            --loglevel=info \
+            -Q browser-queue,mobile-queue,celery \
+            -n "${WORKER_NAME}@%h" \
+            --concurrency=2
+        dest: /opt/tg-worker/start-worker.sh
+        mode: "0755"
+
+    # ── Systemd service ──────────────────────────────────────
+    - name: Create systemd service for Celery worker
+      copy:
+        content: |
+          [Unit]
+          Description=TrafficGrid Celery Worker
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=root
+          WorkingDir=/opt/tg-worker
+          ExecStart=/opt/tg-worker/start-worker.sh
+          Restart=on-failure
+          RestartSec=10
+          Environment=PYTHONPATH=/opt/tg-worker/app
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/tg-worker.service
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: true
+
+    # ── Deploy app code ──────────────────────────────────────
+    - name: Sync backend app code to worker
+      synchronize:
+        src: "{{ playbook_dir }}/../../backend/app/"
+        dest: /opt/tg-worker/app/
+        delete: true
+        rsync_opts:
+          - "--exclude=__pycache__"
+
+    - name: Enable and start worker service
+      systemd:
+        name: tg-worker
+        enabled: true
+        state: restarted
