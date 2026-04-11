@@ -5,7 +5,11 @@ if [ $# -gt 0 ]; then
   exec "$@"
 fi
 
-# Otherwise, run the web server based on ENV
+# Run database migrations
+echo "Running database migrations..."
+alembic upgrade head
+
+# Start the web server based on ENV
 if [ "$ENV" = "development" ]; then
   echo "Running in development mode with hot-reloading..."
   exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
