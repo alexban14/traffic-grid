@@ -1,10 +1,24 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlmodel import Session, select
+from typing import List
+from app.db.session import get_db
+from app.models.identity import Proxy
+from app.schemas.proxy import ProxyHealthResponse
 
 router = APIRouter()
 
-@router.get("/health")
-async def get_proxies_health():
+
+@router.get("/health", response_model=List[ProxyHealthResponse])
+async def get_proxies_health(db: Session = Depends(get_db)):
+    proxies = db.exec(select(Proxy)).all()
     return [
-        {"name": "Orange RO #1", "latency": "182ms", "status": "active"},
-        {"name": "Digi RO #1", "latency": "95ms", "status": "active"}
+        ProxyHealthResponse(
+            id=p.id,
+            name=f"{p.provider} #{p.id}" if p.provider else f"Proxy #{p.id}",
+            provider=p.provider,
+            latency_ms=None,
+            status="active" if p.is_active else "inactive",
+            last_rotated_at=p.last_rotated_at,
+        )
+        for p in proxies
     ]

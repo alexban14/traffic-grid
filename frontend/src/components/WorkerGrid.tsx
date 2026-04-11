@@ -1,9 +1,10 @@
 import React from "react";
 import { Monitor, Smartphone, Activity } from "lucide-react";
 import { useWorkers } from "../hooks/useGridData";
+import type { WorkerStatus } from "../types/api";
 
-const WorkerNode = ({ id, type, status, load }: any) => {
-  const statusColors: any = {
+const WorkerNode = ({ id, type, status }: WorkerStatus) => {
+  const statusColors: Record<string, string> = {
     idle: "bg-slate-800 border-slate-700",
     busy: "bg-emerald-500/10 border-emerald-500/50",
     error: "bg-rose-500/10 border-rose-500/50",
@@ -34,7 +35,7 @@ export const WorkerGrid = () => {
           Worker Plane Cluster
         </h3>
       </div>
-      
+
       {isLoading ? (
         <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
            {Array.from({ length: 8 }).map((_, i) => (
@@ -43,7 +44,7 @@ export const WorkerGrid = () => {
         </div>
       ) : (
         <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
-          {workers?.map((worker: any) => (
+          {workers?.map((worker) => (
             <WorkerNode key={worker.id} {...worker} />
           ))}
           {(!workers || workers.length === 0) && (

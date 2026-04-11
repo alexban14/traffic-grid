@@ -39,7 +39,7 @@ services:
   worker:
     build: ./backend
     container_name: tg-worker
-    command: celery -A app.worker.celery_app worker --loglevel=info
+    command: celery -A app.core.celery_app:celery_app worker --loglevel=info -Q browser-queue,mobile-queue,celery
     volumes:
       - ./backend/app:/app/app
     environment:
@@ -64,7 +64,7 @@ services:
     container_name: tg-frontend
     volumes:
       - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf
-      - ./frontend/dist_final:/usr/share/nginx/html
+      - ./frontend/dist:/usr/share/nginx/html
     ports:
       - "18423:80"
     depends_on:

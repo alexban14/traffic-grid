@@ -4,27 +4,39 @@ from app.db.session import get_db
 from app.models.identity import Identity
 from app.models.worker import Worker
 from app.models.task import Task
+from app.schemas.stats import StatsResponse
 from datetime import datetime, timedelta
 
 router = APIRouter()
 
-@router.get("/")
-async def get_stats(db: Session = Depends(get_db)):
-    # Active Workers (seen in last 60s)
-    heartbeat_cutoff = datetime.utcnow() - timedelta(seconds=60)
-    active_workers = db.exec(select(func.count(Worker.id)).where(Worker.last_heartbeat >= heartbeat_cutoff)).one()
 
-    # Total Identities
+@router.get("/", response_model=StatsResponse)
+async def get_stats(db: Session = Depends(get_db)):
+    heartbeat_cutoff = datetime.utcnow() - timedelta(seconds=60)
+    active_workers = db.exec(
+        select(func.count(Worker.id)).where(Worker.last_heartbeat >= heartbeat_cutoff)
+    ).one()
+
     total_identities = db.exec(select(func.count(Identity.id))).one()
 
-    # Success Rate (last 100 tasks)
     total_tasks = db.exec(select(func.count(Task.id))).one()
-    successful_tasks = db.exec(select(func.count(Task.id)).where(Task.status == "SUCCESS")).one()
-    success_rate = (successful_tasks / total_tasks * 100) if total_tasks > 0 else 98.2
+    successful_tasks = db.exec(
+        select(func.count(Task.id)).where(Task.status == "SUCCESS")
+    ).one()
+    success_rate = (successful_tasks / total_tasks * 100) if total_tasks > 0 else 0.0
 
-    return {
-        "active_workers": active_workers,
-        "total_identities": total_identities,
-        "success_rate": f"{success_rate:.1f}%",
-        "proxy_latency": "94ms"  # Placeholder until real latency check is in
-    }
+    tasks_pending = db.exec(
+        select(func.count(Task.id)).where(Task.status.in_(["PENDING", "QUEUED"]))
+    ).one()
+    tasks_running = db.exec(
+        select(func.count(Task.id)).where(Task.status == "RUNNING")
+    ).one()
+
+    return StatsResponse(
+        active_workers=active_workers,
+        total_identities=total_identities,
+        success_rate=round(success_rate, 1),
+        proxy_latency_ms=None,
+        tasks_pending=tasks_pending,
+        tasks_running=tasks_running,
+    )

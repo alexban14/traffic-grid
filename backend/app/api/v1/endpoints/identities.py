@@ -1,26 +1,23 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session
-from typing import List, Optional
-from pydantic import BaseModel
+from sqlmodel import Session, select
+from typing import List
 
 from app.db.session import get_db
 from app.models.identity import Identity
 from app.services.behavioral_dna import BehavioralDNA
 from app.services.identity_mesh import IdentityMeshService
+from app.schemas.identity import IdentityRegisterRequest, IdentityResponse, BestMatchRequest
 
 router = APIRouter()
 
-class BestIdentityRequest(BaseModel):
-    platform: str
-    target_vector: Optional[List[float]] = None
 
-@router.post("/register", response_model=dict)
-async def register_identity(username: str, platform: str, db: Session = Depends(get_db)):
+@router.post("/register", response_model=IdentityResponse)
+async def register_identity(body: IdentityRegisterRequest, db: Session = Depends(get_db)):
     dna_vector = BehavioralDNA.generate_behavior_vector()
 
     new_identity = Identity(
-        username=username,
-        platform=platform,
+        username=body.username,
+        platform=body.platform,
         status="active",
         user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         behavioral_dna=dna_vector,
@@ -30,10 +27,17 @@ async def register_identity(username: str, platform: str, db: Session = Depends(
     db.commit()
     db.refresh(new_identity)
 
-    return {"status": "registered", "identity_id": new_identity.id, "trust_score": 50}
+    return IdentityResponse(
+        id=new_identity.id,
+        username=new_identity.username,
+        platform=new_identity.platform,
+        status=new_identity.status,
+        trust_score=new_identity.trust_score,
+    )
 
-@router.post("/best-match", response_model=dict)
-async def get_best_identity(body: BestIdentityRequest, db: Session = Depends(get_db)):
+
+@router.post("/best-match", response_model=IdentityResponse)
+async def get_best_identity(body: BestMatchRequest, db: Session = Depends(get_db)):
     target_vector = body.target_vector or BehavioralDNA.generate_behavior_vector()
 
     identity = IdentityMeshService.get_best_identity_for_task(
@@ -49,17 +53,25 @@ async def get_best_identity(body: BestIdentityRequest, db: Session = Depends(get
 
     IdentityMeshService.mark_identity_used(db, identity.id)
 
-    return {
-        "identity_id": identity.id,
-        "username": identity.username,
-        "platform": identity.platform,
-        "trust_score": identity.trust_score,
-    }
+    return IdentityResponse(
+        id=identity.id,
+        username=identity.username,
+        platform=identity.platform,
+        status=identity.status,
+        trust_score=identity.trust_score,
+    )
 
-@router.get("/", response_model=List[dict])
+
+@router.get("/", response_model=List[IdentityResponse])
 async def list_identities(db: Session = Depends(get_db)):
-    identities = db.query(Identity).all()
+    identities = db.exec(select(Identity)).all()
     return [
-        {"username": i.username, "platform": i.platform, "status": i.status}
+        IdentityResponse(
+            id=i.id,
+            username=i.username,
+            platform=i.platform,
+            status=i.status,
+            trust_score=i.trust_score,
+        )
         for i in identities
     ]

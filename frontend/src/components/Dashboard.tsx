@@ -1,12 +1,22 @@
 import React from "react";
+import type { LucideIcon } from "lucide-react";
 import { Activity, Shield, Users, Server } from "lucide-react";
+import type { StatsResponse } from "../types/api";
 
 import { TaskWizard } from "./TaskWizard";
 import { WorkerGrid } from "./WorkerGrid";
 import { LiveConsole } from "./LiveConsole";
 import { useStats } from "../hooks/useStats";
 
-const StatCard = ({ title, value, icon: Icon, color, loading }: any) => (
+interface StatCardProps {
+  title: string;
+  value: string | number;
+  icon: LucideIcon;
+  color: string;
+  loading: boolean;
+}
+
+const StatCard = ({ title, value, icon: Icon, color, loading }: StatCardProps) => (
   <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
     <div className="flex items-center justify-between mb-4">
       <span className="text-slate-400 text-sm font-medium">{title}</span>
@@ -37,32 +47,32 @@ export const Dashboard = () => {
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-        <StatCard 
-          title="Active Workers" 
-          value={stats?.active_workers || 0} 
-          icon={Server} 
-          color="text-blue-500" 
+        <StatCard
+          title="Active Workers"
+          value={stats?.active_workers ?? 0}
+          icon={Server}
+          color="text-blue-500"
           loading={isLoading}
         />
-        <StatCard 
-          title="Proxy Latency" 
-          value={stats?.proxy_latency || "--"} 
-          icon={Activity} 
-          color="text-emerald-500" 
+        <StatCard
+          title="Tasks Pending"
+          value={stats?.tasks_pending ?? 0}
+          icon={Activity}
+          color="text-emerald-500"
           loading={isLoading}
         />
-        <StatCard 
-          title="Identities" 
-          value={stats?.total_identities || 0} 
-          icon={Users} 
-          color="text-purple-500" 
+        <StatCard
+          title="Identities"
+          value={stats?.total_identities ?? 0}
+          icon={Users}
+          color="text-purple-500"
           loading={isLoading}
         />
-        <StatCard 
-          title="Success Rate" 
-          value={stats?.success_rate || "0%"} 
-          icon={Shield} 
-          color="text-amber-500" 
+        <StatCard
+          title="Success Rate"
+          value={stats?.success_rate != null ? `${stats.success_rate}%` : "N/A"}
+          icon={Shield}
+          color="text-amber-500"
           loading={isLoading}
         />
       </div>

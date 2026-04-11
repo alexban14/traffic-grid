@@ -1,40 +1,80 @@
+import logging
 import asyncio
+from celery import Task as CeleryTask
+from sqlmodel import Session
 from app.core.celery_app import celery_app
-from app.services.browser_worker import BrowserWorker
+from app.db.session import engine
+from app.models.task import Task
 from app.services.identity_mesh import IdentityMeshService
-from app.db.session import SessionLocal
-from app.models.identity import Identity
+from app.services.proxy_manager import ProxyManager
+from app.services.behavioral_dna import BehavioralDNA
+from app.drivers.registry import get_driver
+from datetime import datetime
 
-@celery_app.task(name="app.tasks.browser.view_boost")
-def browser_view_boost(target_url: str, count: int):
-    """
-    Real Playwright worker task.
-    """
-    loop = asyncio.get_event_loop()
-    
-    # In a real scenario, we would loop through the count
-    # and dispatch to available identities.
-    with SessionLocal() as session:
-        # Get best identity for the task
-        # For now, we use a generic vector
-        dummy_vector = [0.1] * 1536
-        identity = IdentityMeshService.get_best_identity_for_task(
-            session, "tiktok", dummy_vector
-        )
-        
-        if not identity:
-            return {"status": "error", "message": "No available identities"}
+logger = logging.getLogger(__name__)
 
-        worker = BrowserWorker(worker_id="LXC-WORKER-01")
-        success = loop.run_until_complete(worker.run_view_boost(target_url, identity))
-        
-        if success:
-            IdentityMeshService.mark_identity_used(session, identity.id)
-            
-    return {"status": "success" if success else "failed"}
 
-@celery_app.task(name="app.tasks.mobile.warmup")
-def mobile_warmup(device_id: str, duration_mins: int):
-    # Placeholder for ADB implementation
-    print(f"Mobile warmup requested for {device_id}")
-    return {"status": "received"}
+class TaskWithDB(CeleryTask):
+    """Base task class that provides a DB session."""
+    def get_session(self):
+        return Session(engine)
+
+
+@celery_app.task(base=TaskWithDB, bind=True, name="app.tasks.browser.view_boost")
+def browser_view_boost(self, task_id: int, target_url: str, count: int):
+    with self.get_session() as session:
+        task = session.get(Task, task_id)
+        if not task:
+            logger.error(f"Task {task_id} not found")
+            return {"status": "error", "message": "Task not found"}
+
+        task.status = "RUNNING"
+        task.started_at = datetime.utcnow()
+        session.add(task)
+        session.commit()
+
+        try:
+            target_vector = BehavioralDNA.generate_behavior_vector()
+            identity = IdentityMeshService.get_best_identity_for_task(
+                session, task.type.replace("_views", "").replace("_warmup", "").replace("_watchtime", ""),
+                target_vector,
+            )
+            if not identity:
+                raise RuntimeError("No available identities (all may be on cooldown)")
+
+            proxy = ProxyManager.get_best_proxy(session)
+
+            driver = get_driver(task.type, worker_id=f"celery-{self.request.id[:8]}")
+
+            loop = asyncio.new_event_loop()
+            try:
+                success = loop.run_until_complete(
+                    driver.execute_view(target_url, identity, proxy)
+                )
+            finally:
+                loop.close()
+
+            if success:
+                IdentityMeshService.mark_identity_used(session, identity.id)
+                task.status = "SUCCESS"
+                task.result = {"views_delivered": 1}
+            else:
+                task.status = "FAILED"
+                task.error_message = "Driver returned failure"
+
+        except Exception as e:
+            logger.exception(f"Task {task_id} failed")
+            task.status = "FAILED"
+            task.error_message = str(e)
+
+        task.completed_at = datetime.utcnow()
+        session.add(task)
+        session.commit()
+
+    return {"status": task.status, "task_id": task_id}
+
+
+@celery_app.task(base=TaskWithDB, bind=True, name="app.tasks.mobile.warmup")
+def mobile_warmup(self, task_id: int, device_id: str, duration_mins: int):
+    logger.info(f"Mobile warmup requested for {device_id}, task {task_id}")
+    return {"status": "received", "task_id": task_id}

@@ -7,10 +7,8 @@ export const LiveConsole = ({ workerId }: { workerId: string }) => {
 
   useEffect(() => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const host = window.location.hostname;
-    const port = "18420"; // Backend port
-    const ws = new WebSocket(`${protocol}//${host}:${port}/api/v1/workers/${workerId}/ws`);
-    
+    const ws = new WebSocket(`${protocol}//${window.location.host}/api/v1/workers/${workerId}/ws`);
+
     ws.onmessage = (event) => {
       setLogs((prev) => [...prev.slice(-49), `[${new Date().toLocaleTimeString()}] ${event.data}`]);
     };
