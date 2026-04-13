@@ -18,11 +18,16 @@
       - pydantic-settings
 
   tasks:
-    # ── System packages ──────────────────────────────────────
-    - name: Update apt cache
+    # ── Wait for apt lock ────────────────────────────────────
+    - name: Wait for apt lock to be released
+      shell: while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 5; done
+      changed_when: false
+
+    - name: Disable unattended-upgrades
       apt:
+        name: unattended-upgrades
+        state: absent
         update_cache: true
-        cache_valid_time: 3600
 
     - name: Install system dependencies
       apt:
