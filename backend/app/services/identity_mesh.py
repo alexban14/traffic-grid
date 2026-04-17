@@ -34,6 +34,7 @@ class IdentityMeshService:
     ) -> Optional[Identity]:
         cooldown_cutoff = datetime.utcnow() - timedelta(hours=COOLDOWN_HOURS)
 
+        # Try vector-based matching first
         statement = (
             select(Identity)
             .where(
@@ -47,7 +48,24 @@ class IdentityMeshService:
             .order_by(Identity.behavioral_dna.l2_distance(target_vector))
             .limit(1)
         )
-        return session.exec(statement).first()
+        result = session.exec(statement).first()
+        if result:
+            return result
+
+        # Fallback: any active identity for the platform (no vector required)
+        fallback = (
+            select(Identity)
+            .where(
+                and_(
+                    Identity.platform == platform,
+                    Identity.status == "active",
+                    (Identity.last_used_at.is_(None)) | (Identity.last_used_at <= cooldown_cutoff),
+                )
+            )
+            .order_by(Identity.last_used_at.asc().nulls_first())
+            .limit(1)
+        )
+        return session.exec(fallback).first()
 
     @staticmethod
     def mark_identity_used(session: Session, identity_id: int) -> None:

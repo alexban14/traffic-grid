@@ -71,7 +71,7 @@ def browser_view_boost(self, task_id: int, target_url: str, count: int):
         session.add(task)
         session.commit()
 
-    return {"status": task.status, "task_id": task_id}
+        return {"status": task.status, "task_id": task_id}
 
 
 @celery_app.task(base=TaskWithDB, bind=True, name="app.tasks.mobile.warmup")
