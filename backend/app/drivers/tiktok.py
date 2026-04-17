@@ -1,7 +1,7 @@
 import logging
 from typing import Optional
 from playwright.async_api import async_playwright
-from playwright_stealth import stealth_async
+from playwright_stealth import Stealth
 from app.drivers.base import PlatformDriver
 from app.models.identity import Identity, Proxy
 from app.services.behavioral_dna import BehavioralDNA
@@ -22,7 +22,8 @@ class TikTokBrowserDriver(PlatformDriver):
             context = await browser.new_context(user_agent=identity.user_agent)
             page = await context.new_page()
 
-            await stealth_async(page)
+            stealth = Stealth()
+            await stealth.apply_stealth_async(page)
 
             try:
                 await self.log(f"Navigating to {url}...")
