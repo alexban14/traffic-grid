@@ -130,6 +130,8 @@
           set -e
           source /opt/tg-worker/venv/bin/activate
           export $(cat /opt/tg-worker/config/.env | xargs)
+          export PYTHONPATH=/opt/tg-worker
+          cd /opt/tg-worker
           exec celery -A app.core.celery_app:celery_app worker \
             --loglevel=info \
             -Q browser-queue,mobile-queue,celery \
@@ -153,7 +155,7 @@
           ExecStart=/opt/tg-worker/start-worker.sh
           Restart=on-failure
           RestartSec=10
-          Environment=PYTHONPATH=/opt/tg-worker/app
+          Environment=PYTHONPATH=/opt/tg-worker
 
           [Install]
           WantedBy=multi-user.target
