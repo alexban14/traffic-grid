@@ -3,12 +3,11 @@ all:
     ansible_user: root
     ansible_python_interpreter: /usr/bin/python3
     ansible_ssh_private_key_file: ~/.ssh/keys/proxmox-tg-cts
-    trafficgrid_redis_url: "redis://10.20.20.200:18425/0"
-    trafficgrid_db_url: "postgresql://admin:password@10.20.20.200:18424/trafficgrid"
-    trafficgrid_backend_url: "http://10.20.20.200:18420"
+    trafficgrid_control_plane_ip: "10.20.20.200"
+    trafficgrid_backend_url: "http://{{ trafficgrid_control_plane_ip }}:18420"
 
   children:
     workers:
       hosts:
         tg-worker-01:
-          ansible_host: 10.10.10.x  # UPDATE with actual DHCP IP after first boot
+          ansible_host: 10.10.10.106

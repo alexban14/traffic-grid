@@ -3,9 +3,9 @@ services:
     image: pgvector/pgvector:pg16
     container_name: tg-db
     environment:
-      POSTGRES_USER: ${DB_USER:-admin}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
-      POSTGRES_DB: trafficgrid
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     volumes:
       - ./database/data:/var/lib/postgresql/data
     ports:
@@ -16,6 +16,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: tg-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD}
     ports:
       - "18425:6379"
     networks:
@@ -29,9 +30,9 @@ services:
       - ./backend/alembic:/app/alembic
       - ./backend/alembic.ini:/app/alembic.ini
     environment:
-      - DATABASE_URL=postgresql://admin:password@db:5432/trafficgrid
-      - REDIS_URL=redis://redis:6379/0
-      - ENV=development
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - ENV=${ENV:-development}
     ports:
       - "18420:8000"
     depends_on:
@@ -47,8 +48,8 @@ services:
     volumes:
       - ./backend/app:/app/app
     environment:
-      - DATABASE_URL=postgresql://admin:password@db:5432/trafficgrid
-      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
     depends_on:
       - redis
     networks:
