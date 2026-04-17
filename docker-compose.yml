@@ -9,7 +9,7 @@ services:
     volumes:
       - ./database/data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "18424:5432"
     networks:
       - tg-network
 
@@ -17,7 +17,7 @@ services:
     image: redis:7-alpine
     container_name: tg-redis
     ports:
-      - "6379:6379"
+      - "18425:6379"
     networks:
       - tg-network
 
