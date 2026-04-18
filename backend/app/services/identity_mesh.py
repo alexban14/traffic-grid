@@ -8,10 +8,15 @@ COOLDOWN_HOURS = 2
 
 
 def _unwrap(row) -> Optional[Identity]:
-    """SQLAlchemy select() returns Row tuples; extract the model."""
+    """SQLAlchemy select() returns Row objects; extract the model."""
     if row is None:
         return None
-    return row[0] if isinstance(row, tuple) else row
+    if isinstance(row, Identity):
+        return row
+    try:
+        return row[0]
+    except (TypeError, IndexError):
+        return row
 
 
 class IdentityMeshService:
