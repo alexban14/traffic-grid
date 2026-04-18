@@ -1,10 +1,18 @@
 from typing import List, Optional
 from datetime import datetime, timedelta
-from sqlalchemy import select, and_
 from sqlmodel import Session
+from sqlalchemy import select, and_
 from app.models.identity import Identity
 
 COOLDOWN_HOURS = 2
+
+
+def _unwrap(row) -> Optional[Identity]:
+    """SQLAlchemy select() returns Row tuples; extract the model."""
+    if row is None:
+        return None
+    return row[0] if isinstance(row, tuple) else row
+
 
 class IdentityMeshService:
     @staticmethod
@@ -24,7 +32,7 @@ class IdentityMeshService:
             .order_by(Identity.behavioral_dna.l2_distance(target_vector))
             .limit(limit)
         )
-        return session.exec(statement).all()
+        return [_unwrap(r) for r in session.exec(statement).all()]
 
     @staticmethod
     def get_best_identity_for_task(
@@ -48,7 +56,7 @@ class IdentityMeshService:
             .order_by(Identity.behavioral_dna.l2_distance(target_vector))
             .limit(1)
         )
-        result = session.exec(statement).first()
+        result = _unwrap(session.exec(statement).first())
         if result:
             return result
 
@@ -65,7 +73,7 @@ class IdentityMeshService:
             .order_by(Identity.last_used_at.asc().nulls_first())
             .limit(1)
         )
-        return session.exec(fallback).first()
+        return _unwrap(session.exec(fallback).first())
 
     @staticmethod
     def mark_identity_used(session: Session, identity_id: int) -> None:
