@@ -1,0 +1,1 @@
+# TrafficGrid: Z420 Worker Plane (Proxmox)\n\nTo scale TrafficGrid to 1M+ views, we will use the **HP Z420** as our high-density \
