@@ -1,17 +1,22 @@
 import logging
 import asyncio
+from typing import Optional
 from celery import Task as CeleryTask
 from sqlmodel import Session
+from sqlalchemy import select, and_
 from app.core.celery_app import celery_app
 from app.db.session import engine
 from app.models.task import Task
+from app.models.identity import Identity
 from app.services.identity_mesh import IdentityMeshService
 from app.services.proxy_manager import ProxyManager
 from app.services.behavioral_dna import BehavioralDNA
 from app.drivers.registry import get_driver
-from datetime import datetime
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
+
+COOLDOWN_HOURS = 2
 
 
 class TaskWithDB(CeleryTask):
@@ -20,8 +25,27 @@ class TaskWithDB(CeleryTask):
         return Session(engine)
 
 
+def _get_available_identities(session: Session, platform: str) -> list[Identity]:
+    """Fetch all active identities for a platform that are not on cooldown."""
+    cooldown_cutoff = datetime.utcnow() - timedelta(hours=COOLDOWN_HOURS)
+    statement = (
+        select(Identity)
+        .where(
+            and_(
+                Identity.platform == platform,
+                Identity.status == "active",
+                (Identity.last_used_at.is_(None)) | (Identity.last_used_at <= cooldown_cutoff),
+            )
+        )
+        .order_by(Identity.last_used_at.asc().nulls_first())
+    )
+    rows = session.exec(statement).all()
+    # Unwrap SQLAlchemy Row objects
+    return [r[0] if not isinstance(r, Identity) else r for r in rows]
+
+
 @celery_app.task(base=TaskWithDB, bind=True, name="app.tasks.browser.view_boost")
-def browser_view_boost(self, task_id: int, target_url: str, count: int):
+def browser_view_boost(self, task_id: int, target_url: str, count: int, identity_id: Optional[int] = None):
     with self.get_session() as session:
         task = session.get(Task, task_id)
         if not task:
@@ -34,13 +58,20 @@ def browser_view_boost(self, task_id: int, target_url: str, count: int):
         session.commit()
 
         try:
-            target_vector = BehavioralDNA.generate_behavior_vector()
-            identity = IdentityMeshService.get_best_identity_for_task(
-                session, task.type.replace("_views", "").replace("_warmup", "").replace("_watchtime", ""),
-                target_vector,
-            )
-            if not identity:
-                raise RuntimeError("No available identities (all may be on cooldown)")
+            # Use pre-assigned identity (round-robin) or fall back to reactive lookup
+            if identity_id:
+                identity = session.get(Identity, identity_id)
+                if not identity:
+                    raise RuntimeError(f"Pre-assigned identity {identity_id} not found")
+            else:
+                target_vector = BehavioralDNA.generate_behavior_vector()
+                identity = IdentityMeshService.get_best_identity_for_task(
+                    session,
+                    task.type.replace("_views", "").replace("_warmup", "").replace("_watchtime", ""),
+                    target_vector,
+                )
+                if not identity:
+                    raise RuntimeError("No available identities (all may be on cooldown)")
 
             proxy = ProxyManager.get_best_proxy(session)
 
@@ -57,7 +88,7 @@ def browser_view_boost(self, task_id: int, target_url: str, count: int):
             if success:
                 IdentityMeshService.mark_identity_used(session, identity.id)
                 task.status = "SUCCESS"
-                task.result = {"views_delivered": 1}
+                task.result = {"views_delivered": 1, "identity_used": identity.username}
             else:
                 task.status = "FAILED"
                 task.error_message = "Driver returned failure"
@@ -76,7 +107,7 @@ def browser_view_boost(self, task_id: int, target_url: str, count: int):
 
 @celery_app.task(base=TaskWithDB, bind=True, name="app.tasks.browser.profile_boost")
 def browser_profile_boost(self, task_id: int, profile_url: str, views_per_video: int = 1):
-    """Scrape a TikTok profile, then fan out view tasks for each video found."""
+    """Scrape a TikTok profile, then fan out view tasks with round-robin identity assignment."""
     with self.get_session() as session:
         task = session.get(Task, task_id)
         if not task:
@@ -104,15 +135,36 @@ def browser_profile_boost(self, task_id: int, profile_url: str, views_per_video:
             if not video_urls:
                 raise RuntimeError(f"No videos found on profile: {profile_url}")
 
-            # Fan out: create a child view task for each video
+            # Fetch available identities for round-robin assignment
+            identities = _get_available_identities(session, "tiktok")
+            if not identities:
+                raise RuntimeError("No available TikTok identities (all on cooldown)")
+
+            total_tasks_needed = len(video_urls) * views_per_video
+            logger.info(
+                f"Profile boost: {len(video_urls)} videos × {views_per_video} views = "
+                f"{total_tasks_needed} tasks, {len(identities)} identities available"
+            )
+
+            # Fan out with round-robin identity assignment
             child_task_ids = []
+            identity_idx = 0
+
             for url in video_urls:
                 for _ in range(views_per_video):
+                    assigned_identity = identities[identity_idx % len(identities)]
+                    identity_idx += 1
+
                     child = Task(
                         type="tiktok_views",
                         target_url=url,
                         status="PENDING",
-                        config={"volume": 1, "parent_task_id": task_id},
+                        config={
+                            "volume": 1,
+                            "parent_task_id": task_id,
+                            "identity_id": assigned_identity.id,
+                            "identity_username": assigned_identity.username,
+                        },
                     )
                     session.add(child)
                     session.commit()
@@ -120,7 +172,12 @@ def browser_profile_boost(self, task_id: int, profile_url: str, views_per_video:
 
                     celery_task = celery_app.send_task(
                         "app.tasks.browser.view_boost",
-                        kwargs={"task_id": child.id, "target_url": url, "count": 1},
+                        kwargs={
+                            "task_id": child.id,
+                            "target_url": url,
+                            "count": 1,
+                            "identity_id": assigned_identity.id,
+                        },
                     )
                     child.status = "QUEUED"
                     child.celery_task_id = celery_task.id
@@ -132,6 +189,7 @@ def browser_profile_boost(self, task_id: int, profile_url: str, views_per_video:
             task.result = {
                 "videos_found": len(video_urls),
                 "tasks_created": len(child_task_ids),
+                "identities_used": min(len(identities), total_tasks_needed),
                 "child_task_ids": child_task_ids,
                 "video_urls": video_urls,
             }

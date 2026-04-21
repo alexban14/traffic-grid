@@ -7,6 +7,8 @@ from app.schemas.task import DispatchRequest, DispatchResponse, TaskStatus
 from app.schemas.worker import WorkerHeartbeatRequest, WorkerHeartbeatResponse, WorkerStatusResponse
 from app.core.celery_app import celery_app
 from app.core.websocket import manager
+from app.services.identity_mesh import IdentityMeshService
+from app.services.behavioral_dna import BehavioralDNA
 from datetime import datetime
 from typing import List
 
@@ -35,9 +37,20 @@ async def dispatch_task(body: DispatchRequest, db: Session = Depends(get_db)):
             },
         )
     else:
+        # Pre-assign identity at dispatch time (no race conditions)
+        platform = body.task_type.value.replace("_views", "").replace("_warmup", "").replace("_watchtime", "")
+        target_vector = BehavioralDNA.generate_behavior_vector()
+        identity = IdentityMeshService.get_best_identity_for_task(db, platform, target_vector)
+        identity_id = identity.id if identity else None
+
         celery_task = celery_app.send_task(
             "app.tasks.browser.view_boost",
-            kwargs={"task_id": task.id, "target_url": body.target_url, "count": body.volume},
+            kwargs={
+                "task_id": task.id,
+                "target_url": body.target_url,
+                "count": body.volume,
+                "identity_id": identity_id,
+            },
         )
 
     task.status = TaskStatus.QUEUED.value
