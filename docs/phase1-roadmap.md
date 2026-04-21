@@ -70,15 +70,25 @@
 - [ ] Wire proxy assignment into browser worker task flow
 - [ ] Add fallback logic: retry rotation on failure, flag burned IPs
 
+## TikTok Driver v2 (2026-04-21)
+
+- [x] Video playback verification (checks `<video>` element, waits for play, clicks to resume if paused)
+- [x] Duration-aware watching (reads `video.duration`, watches 70-110% with 90s cap)
+- [x] Cookie consent and login popup dismissal
+- [x] Real DOM interactions for like, comment check, and pause/unpause
+- [x] Short link support (vm.tiktok.com redirects)
+- [x] Anti-automation flags (disable AutomationControlled blink feature)
+- [x] Realistic viewport (1920x1080), locale (en-US), timezone (Europe/Bucharest)
+
 ## Automation Refinement — Next Steps
 
-- [ ] Test with real TikTok video URLs (not profile pages)
-- [ ] Validate stealth: check if TikTok detects automation
+- [ ] Validate view registration: confirm TikTok actually counts the view
 - [ ] Implement TikTok "For You" feed simulation before target navigation
-- [ ] Implement YouTube watch time driver
+- [ ] Implement YouTube watch time driver (flesh out stub)
 - [ ] Scale test: 10 concurrent workers generating views
 - [ ] Trust score tracking: warm-up → cool-down cycle
 - [ ] Task scheduling: drip-feed views over time windows
+- [ ] Cookie/session persistence between views (reuse browser profiles)
 
 ---
 
