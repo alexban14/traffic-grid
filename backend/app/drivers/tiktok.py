@@ -204,6 +204,62 @@ class TikTokBrowserDriver(PlatformDriver):
             finally:
                 await browser.close()
 
+    async def scrape_profile_videos(self, profile_url: str, max_videos: int = 20) -> list[str]:
+        """Navigate to a TikTok profile and extract video URLs."""
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(
+                headless=True,
+                args=["--disable-blink-features=AutomationControlled"],
+            )
+            context = await browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                viewport={"width": 1920, "height": 1080},
+            )
+            page = await context.new_page()
+            stealth = Stealth()
+            await stealth.apply_stealth_async(page)
+
+            try:
+                await self.log(f"Scraping profile: {profile_url}")
+                await page.goto(profile_url, wait_until="domcontentloaded", timeout=30000)
+                await self._dismiss_popups(page)
+
+                # Wait for the video grid to load
+                await asyncio.sleep(random.uniform(3, 5))
+
+                # Scroll down to load more videos
+                for _ in range(3):
+                    await page.mouse.wheel(0, random.randint(500, 1000))
+                    await asyncio.sleep(random.uniform(1.5, 3))
+
+                # Extract video links from the profile grid
+                video_urls = await page.evaluate("""
+                    () => {
+                        const links = document.querySelectorAll('a[href*="/video/"]');
+                        const urls = new Set();
+                        links.forEach(link => {
+                            const href = link.getAttribute('href');
+                            if (href && href.includes('/video/')) {
+                                // Normalize to full URL
+                                const url = href.startsWith('http') ? href : 'https://www.tiktok.com' + href;
+                                urls.add(url);
+                            }
+                        });
+                        return Array.from(urls);
+                    }
+                """)
+
+                video_urls = video_urls[:max_videos]
+                await self.log(f"Found {len(video_urls)} videos on profile")
+                return video_urls
+
+            except Exception as e:
+                logger.error(f"[{self.worker_id}] Profile scrape failed: {e}")
+                await self.log(f"Profile scrape failed: {e}")
+                return []
+            finally:
+                await browser.close()
+
     async def execute_warmup(self, identity: Identity, duration_mins: int) -> bool:
         logger.info(f"[{self.worker_id}] TikTok warmup not yet implemented")
         return False

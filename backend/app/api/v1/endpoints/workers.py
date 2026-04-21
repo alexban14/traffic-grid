@@ -25,10 +25,20 @@ async def dispatch_task(body: DispatchRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(task)
 
-    celery_task = celery_app.send_task(
-        "app.tasks.browser.view_boost",
-        kwargs={"task_id": task.id, "target_url": body.target_url, "count": body.volume},
-    )
+    if body.task_type.value == "tiktok_profile_boost":
+        celery_task = celery_app.send_task(
+            "app.tasks.browser.profile_boost",
+            kwargs={
+                "task_id": task.id,
+                "profile_url": body.target_url,
+                "views_per_video": body.volume,
+            },
+        )
+    else:
+        celery_task = celery_app.send_task(
+            "app.tasks.browser.view_boost",
+            kwargs={"task_id": task.id, "target_url": body.target_url, "count": body.volume},
+        )
 
     task.status = TaskStatus.QUEUED.value
     task.celery_task_id = celery_task.id

@@ -5,6 +5,7 @@ from app.drivers.youtube import YouTubeBrowserDriver
 
 DRIVER_REGISTRY: dict[str, type[PlatformDriver]] = {
     "tiktok_views": TikTokBrowserDriver,
+    "tiktok_profile_boost": TikTokBrowserDriver,
     "tiktok_warmup": TikTokBrowserDriver,
     "yt_watchtime": YouTubeBrowserDriver,
 }

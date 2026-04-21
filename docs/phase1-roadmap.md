@@ -79,6 +79,8 @@
 - [x] Short link support (vm.tiktok.com redirects)
 - [x] Anti-automation flags (disable AutomationControlled blink feature)
 - [x] Realistic viewport (1920x1080), locale (en-US), timezone (Europe/Bucharest)
+- [x] Profile boost: scrape profile → fan out view tasks for all videos
+- [x] Task fan-out: parent profile task creates child view tasks queued in parallel
 
 ## Automation Refinement — Next Steps
 

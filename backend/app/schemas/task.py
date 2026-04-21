@@ -6,6 +6,7 @@ from enum import Enum
 
 class TaskType(str, Enum):
     TIKTOK_VIEWS = "tiktok_views"
+    TIKTOK_PROFILE_BOOST = "tiktok_profile_boost"
     TIKTOK_WARMUP = "tiktok_warmup"
     YT_WATCHTIME = "yt_watchtime"
 

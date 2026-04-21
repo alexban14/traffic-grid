@@ -30,20 +30,24 @@ TikTokBrowserDriver(PlatformDriver)
 ├── _wait_for_video_playback(page) → verify <video> is actually playing
 ├── _get_video_duration(page)     → read video.duration from DOM
 ├── _watch_video(page)            → duration-aware watch (70-110% of video)
+├── scrape_profile_videos(url, max) → extract video URLs from profile page
 └── execute_view(url, identity, proxy)
-    → launch stealth browser
-    → navigate (follows short link redirects)
-    → dismiss popups
-    → verify playback
-    → watch video (duration-aware)
-    → behavioral scroll
-    → curiosity action (like/comment/pause)
+    → launch stealth browser → navigate → dismiss popups
+    → verify playback → watch video → scroll → curiosity action
 
 YouTubeBrowserDriver(PlatformDriver)
 └── Stub — same interface, different selectors (not yet implemented)
 
+Orchestrator Tasks
+├── browser_view_boost    → single video view (identity + proxy + driver)
+├── browser_profile_boost → scrape profile → fan out N view tasks
+└── mobile_warmup         → stub
+
 DriverRegistry
-└── get_driver(task_type) → maps "tiktok_views" → TikTokBrowserDriver
+├── "tiktok_views"         → TikTokBrowserDriver
+├── "tiktok_profile_boost" → TikTokBrowserDriver
+├── "tiktok_warmup"        → TikTokBrowserDriver
+└── "yt_watchtime"         → YouTubeBrowserDriver
 ```
 
 ## TikTok Driver Capabilities (v2, 2026-04-21)
@@ -82,7 +86,16 @@ DriverRegistry
 ### URL Support
 - Full TikTok URLs: `https://www.tiktok.com/@user/video/123`
 - Short links: `https://vm.tiktok.com/abc/` (follows redirect automatically)
-- Profile URLs: `https://www.tiktok.com/@user` (loads first video)
+- Profile URLs: `https://www.tiktok.com/@user` (profile boost scrapes all videos)
+
+### Profile Boost (`tiktok_profile_boost`)
+- Navigates to profile page with stealth browser
+- Scrolls to load video grid (3 scroll passes)
+- Extracts `<a href="/video/...">` links from DOM (up to `max_videos`, default 20)
+- Creates individual `tiktok_views` child tasks for each video found
+- `volume` parameter controls views per video
+- Parent task records `videos_found`, `tasks_created`, `child_task_ids` in result JSON
+- Fan-out: all child tasks queued to Celery for parallel execution across workers
 
 ## Execution History
 
