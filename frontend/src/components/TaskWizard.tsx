@@ -5,8 +5,10 @@ import type { DispatchResponse } from "../types/api";
 export const TaskWizard = () => {
   const [taskType, setTaskType] = useState("tiktok_views");
   const [targetUrl, setTargetUrl] = useState("");
-  const [volume, setVolume] = useState(1000);
+  const [volume, setVolume] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const isProfileBoost = taskType === "tiktok_profile_boost";
   const [lastResult, setLastResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const handleDispatch = async () => {
@@ -48,25 +50,30 @@ export const TaskWizard = () => {
             value={taskType}
             onChange={(e) => setTaskType(e.target.value)}
           >
-            <option value="tiktok_views">TikTok: Mass Views</option>
+            <option value="tiktok_views">TikTok: Single Video Views</option>
+            <option value="tiktok_profile_boost">TikTok: Profile Boost (All Videos)</option>
             <option value="tiktok_warmup">TikTok: Account Warm-up (Physical)</option>
             <option value="yt_watchtime">YouTube: Watch Time Boost</option>
           </select>
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Target URL</label>
+          <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+            {isProfileBoost ? "Profile URL" : "Target URL"}
+          </label>
           <input
             type="text"
             value={targetUrl}
             onChange={(e) => setTargetUrl(e.target.value)}
-            placeholder="https://www.tiktok.com/@user/video/..."
+            placeholder={isProfileBoost ? "https://www.tiktok.com/@username" : "https://www.tiktok.com/@user/video/... or vm.tiktok.com/..."}
             className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm focus:border-emerald-500 outline-none transition-colors"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Volume</label>
+          <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+            {isProfileBoost ? "Views per Video" : "Volume"}
+          </label>
           <input
             type="number"
             value={volume}
