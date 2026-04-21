@@ -9,6 +9,10 @@ fi
 echo "Running database migrations..."
 alembic upgrade head
 
+# Seed database (idempotent — skips if data exists)
+echo "Running database seeder..."
+python -m app.db.seed
+
 # Start the web server based on ENV
 if [ "$ENV" = "development" ]; then
   echo "Running in development mode with hot-reloading..."

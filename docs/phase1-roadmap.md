@@ -30,6 +30,7 @@
 - [x] Frontend dashboard loads and displays live stats via Tailscale
 - [x] Pydantic schemas for all API endpoints (task, worker, proxy, identity, stats)
 - [x] Platform driver abstraction (`PlatformDriver` ABC → `TikTokBrowserDriver`, `YouTubeBrowserDriver`)
+- [x] Python database seeder with realistic Romanian identities (20 TikTok + 10 YouTube, auto-run on startup)
 - [x] BehavioralDNA engine (Bezier scrolling, variable dwell time, curiosity actions)
 - [x] Identity mesh with pgvector similarity search + 2-hour cooldown
 - [x] Proxy manager with LRU rotation (ready for real proxies)
