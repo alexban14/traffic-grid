@@ -51,20 +51,20 @@ These are independent pools. No entity is permanently assigned to another — th
 
 ```
 1. User dispatches:  POST /dispatch {task_type: "tiktok_views", target_url: "...", volume: 1}
-2. Backend creates:  Task record in PostgreSQL (status: PENDING)
-3. Backend queues:   Celery task → Redis (status: QUEUED)
-4. Worker picks up:  Next available worker takes the task from the queue
-5. Worker requests:  IdentityMeshService.get_best_identity_for_task()
-                     → returns best available identity (not on cooldown, closest vector)
-6. Worker requests:  ProxyManager.get_best_proxy()
+2. Backend assigns:  Pre-selects best identity via IdentityMeshService (vector similarity + cooldown check)
+3. Backend creates:  Task record in PostgreSQL (status: PENDING, config.identity_id set)
+4. Backend queues:   Celery task with identity_id kwarg → Redis (status: QUEUED)
+5. Worker picks up:  Next available worker takes the task from the queue
+6. Worker loads:     session.get(Identity, identity_id) — no search, no race condition
+7. Worker requests:  ProxyManager.get_best_proxy()
                      → returns least-recently-used active proxy (or None)
-7. Worker executes:  PlatformDriver.execute_view(url, identity, proxy)
+8. Worker executes:  PlatformDriver.execute_view(url, identity, proxy)
                      → launches stealth Playwright browser
                      → navigates to URL, verifies video playback
                      → watches for duration-aware time
                      → performs random interactions
-8. Worker reports:   Updates Task in DB (status: SUCCESS/FAILED, duration, error)
-9. Identity cooldown: identity.last_used_at set → 2-hour cooldown starts
+9. Worker reports:   Updates Task in DB (status: SUCCESS/FAILED, identity_used in result)
+10. Identity cooldown: identity.last_used_at set → 2-hour cooldown starts
 ```
 
 ### Profile Boost (`tiktok_profile_boost`)
@@ -75,11 +75,13 @@ These are independent pools. No entity is permanently assigned to another — th
 3. Backend queues:   Celery profile_boost task → Redis
 4. Worker picks up:  Scrapes profile page with stealth browser
 5. Worker extracts:  Video URLs from profile grid (up to 20)
-6. Worker fans out:  For each video × volume:
-                       → creates child Task in DB
-                       → sends child to Celery queue as tiktok_views task
-7. Parent completes: status: SUCCESS, result: {videos_found, tasks_created, child_task_ids}
-8. Child tasks:      Picked up by available workers → same flow as single video view
+6. Worker fetches:   All available identities for the platform (not on cooldown)
+7. Worker fans out:  For each video × volume:
+                       → assigns identity round-robin: identities[idx % len(identities)]
+                       → creates child Task in DB with identity_id in config
+                       → sends child to Celery queue with identity_id kwarg
+8. Parent completes: status: SUCCESS, result: {videos_found, tasks_created, identities_used}
+9. Child tasks:      Picked up by available workers → identity already assigned, no collisions
 ```
 
 ---
@@ -102,25 +104,33 @@ These are independent pools. No entity is permanently assigned to another — th
 
 ---
 
-## Planned: Round-Robin Identity Pre-Assignment
+## Identity Assignment Strategy: Round-Robin Pre-Assignment (Implemented)
 
-The current reactive assignment has a weakness: when many tasks execute simultaneously, multiple workers may grab the same identity before cooldown is recorded, or all tasks fail because the pool is exhausted.
+Identity assignment happens **before** tasks are queued — not at execution time. This eliminates race conditions between parallel workers.
 
-**Planned improvement:**
-
+**Single video dispatch:**
 ```
-Profile boost dispatches 50 tasks (10 videos × 5 views each)
-→ orchestrator pre-assigns identities round-robin:
-    task 1  → identity A
-    task 2  → identity B
-    ...
-    task 20 → identity T
-    task 21 → identity A (cooldown expired by now if tasks are spaced)
-→ each task carries identity_id — worker doesn't search, just uses it
-→ no collisions, no cooldown races, deterministic distribution
+API receives POST /dispatch
+  → IdentityMeshService.get_best_identity_for_task() at dispatch time
+  → identity_id stored in task config + passed as Celery kwarg
+  → worker loads identity by ID (no search, no race)
 ```
 
-This also enables: "use each identity exactly once per video" or "spread 100 views across 20 identities = 5 views each, time-delayed."
+**Profile boost fan-out:**
+```
+Profile boost creates 50 child tasks (10 videos × 5 views)
+  → fetches all available identities (e.g., 20 not on cooldown)
+  → assigns round-robin: task[i].identity = identities[i % 20]
+
+  task 1  → andrei.pop95      (video 1)
+  task 2  → maria_ionescu      (video 1, different identity)
+  task 3  → stefan.rusu03      (video 2)
+  ...
+  task 20 → the.diana.barbu    (video 10)
+  task 21 → andrei.pop95       (video 11, wraps around)
+```
+
+**Auditable:** Each task's `config` JSON records `identity_id` and `identity_username`, and the `result` JSON records `identity_used` on completion.
 
 ---
 

@@ -197,7 +197,13 @@ proxies
 
 **Purpose:** Select the optimal fake user profile for each task execution.
 
-**Selection algorithm:**
+**Assignment strategy:** Round-robin pre-assignment at dispatch/fan-out time (not at worker execution time). This eliminates race conditions between parallel workers competing for the same identity.
+
+- **Single video dispatch:** API endpoint calls `get_best_identity_for_task()` and passes `identity_id` to Celery
+- **Profile boost fan-out:** Orchestrator fetches all available identities, assigns round-robin across child tasks
+- **Worker execution:** Receives `identity_id` kwarg, loads by primary key — no search, no race
+
+**Selection algorithm (used at dispatch time):**
 ```
 1. Filter: platform match + status="active" + behavioral_dna NOT NULL
 2. Filter: last_used_at IS NULL OR last_used_at < (now - 2 hours)
@@ -206,6 +212,18 @@ proxies
 5. Fallback: if no vector matches, select any active identity not on cooldown
              ordered by last_used_at ASC NULLS FIRST
 ```
+
+**Round-robin fan-out (profile boost):**
+```
+_get_available_identities(session, "tiktok")  → [id_A, id_B, ..., id_T]
+
+for i, (video_url, view_num) in enumerate(all_tasks):
+    identity = identities[i % len(identities)]
+    → child task config: {identity_id, identity_username}
+    → Celery kwargs: {identity_id: identity.id}
+```
+
+**Auditability:** Each task's `config` JSON records `identity_id` and `identity_username` at dispatch time. The `result` JSON records `identity_used` on completion. This enables full traceability: which identity viewed which video, when.
 
 **Cooldown mechanism:** After a task completes successfully, `IdentityMeshService.mark_identity_used()` sets `last_used_at = now()`. The identity becomes unavailable for 2 hours. This prevents TikTok from seeing the same "user" generating suspicious activity patterns.
 
