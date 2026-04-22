@@ -37,13 +37,13 @@ async def dispatch_task(body: DispatchRequest, db: Session = Depends(get_db), cu
                 "profile_url": body.target_url,
                 "views_per_video": body.volume,
                 "drip_minutes": body.drip_minutes or 0,
+                "account_type": body.account_type,
             },
         )
     elif body.task_type.value == "tiktok_warmup":
-        # Warmup: pre-assign identity, browse FYP to build session cookies
         platform = "tiktok"
         target_vector = BehavioralDNA.generate_behavior_vector()
-        identity = IdentityMeshService.get_best_identity_for_task(db, platform, target_vector)
+        identity = IdentityMeshService.get_best_identity_for_task(db, platform, target_vector, body.account_type)
         identity_id = identity.id if identity else None
 
         celery_task = celery_app.send_task(
@@ -51,14 +51,13 @@ async def dispatch_task(body: DispatchRequest, db: Session = Depends(get_db), cu
             kwargs={
                 "task_id": task.id,
                 "identity_id": identity_id,
-                "duration_mins": body.volume,  # volume = minutes for warmup
+                "duration_mins": body.volume,
             },
         )
     else:
-        # Pre-assign identity at dispatch time (no race conditions)
         platform = body.task_type.value.replace("_views", "").replace("_warmup", "").replace("_watchtime", "")
         target_vector = BehavioralDNA.generate_behavior_vector()
-        identity = IdentityMeshService.get_best_identity_for_task(db, platform, target_vector)
+        identity = IdentityMeshService.get_best_identity_for_task(db, platform, target_vector, body.account_type)
         identity_id = identity.id if identity else None
 
         celery_task = celery_app.send_task(

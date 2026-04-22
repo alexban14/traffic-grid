@@ -24,6 +24,7 @@ class DispatchRequest(BaseModel):
     target_url: str
     volume: int = 1
     drip_minutes: Optional[int] = None  # Spread views over N minutes (None = all at once)
+    account_type: Optional[str] = None  # "authenticated", "anonymous", or None (any/prefer authenticated)
 
 
 class DispatchResponse(BaseModel):

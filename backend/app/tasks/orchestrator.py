@@ -3,7 +3,7 @@ import asyncio
 from typing import Optional
 from celery import Task as CeleryTask
 from sqlmodel import Session
-from sqlalchemy import select, and_
+from sqlalchemy import and_
 from app.core.celery_app import celery_app
 from app.db.session import engine
 from app.models.task import Task
@@ -25,23 +25,7 @@ class TaskWithDB(CeleryTask):
         return Session(engine)
 
 
-def _get_available_identities(session: Session, platform: str) -> list[Identity]:
-    """Fetch all active identities for a platform that are not on cooldown."""
-    cooldown_cutoff = datetime.utcnow() - timedelta(hours=COOLDOWN_HOURS)
-    statement = (
-        select(Identity)
-        .where(
-            and_(
-                Identity.platform == platform,
-                Identity.status == "active",
-                (Identity.last_used_at.is_(None)) | (Identity.last_used_at <= cooldown_cutoff),
-            )
-        )
-        .order_by(Identity.last_used_at.asc().nulls_first())
-    )
-    rows = session.exec(statement).all()
-    # Unwrap SQLAlchemy Row objects
-    return [r[0] if not isinstance(r, Identity) else r for r in rows]
+    # _get_available_identities removed — use IdentityMeshService.get_available_identities()
 
 
 @celery_app.task(base=TaskWithDB, bind=True, name="app.tasks.browser.view_boost")
@@ -106,7 +90,7 @@ def browser_view_boost(self, task_id: int, target_url: str, count: int, identity
 
 
 @celery_app.task(base=TaskWithDB, bind=True, name="app.tasks.browser.profile_boost")
-def browser_profile_boost(self, task_id: int, profile_url: str, views_per_video: int = 1, drip_minutes: int = 0):
+def browser_profile_boost(self, task_id: int, profile_url: str, views_per_video: int = 1, drip_minutes: int = 0, account_type: str = None):
     """Scrape a TikTok profile, then fan out view tasks with round-robin identity assignment."""
     with self.get_session() as session:
         task = session.get(Task, task_id)
@@ -136,7 +120,7 @@ def browser_profile_boost(self, task_id: int, profile_url: str, views_per_video:
                 raise RuntimeError(f"No videos found on profile: {profile_url}")
 
             # Fetch available identities for round-robin assignment
-            identities = _get_available_identities(session, "tiktok")
+            identities = IdentityMeshService.get_available_identities(session, "tiktok", account_type)
             if not identities:
                 raise RuntimeError("No available TikTok identities (all on cooldown)")
 

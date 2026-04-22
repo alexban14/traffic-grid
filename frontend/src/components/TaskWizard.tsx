@@ -8,6 +8,7 @@ export const TaskWizard = () => {
   const [targetUrl, setTargetUrl] = useState("");
   const [volume, setVolume] = useState(1);
   const [dripMinutes, setDripMinutes] = useState(0);
+  const [accountType, setAccountType] = useState("any");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isProfileBoost = taskType === "tiktok_profile_boost";
@@ -25,6 +26,7 @@ export const TaskWizard = () => {
           target_url: targetUrl,
           volume: parseInt(volume.toString()),
           drip_minutes: dripMinutes > 0 ? dripMinutes : null,
+          account_type: accountType !== "any" ? accountType : null,
         }),
       });
       if (!res.ok) throw new Error("Failed to dispatch task");
@@ -84,6 +86,19 @@ export const TaskWizard = () => {
             placeholder="1,000"
             className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-slate-50 placeholder:text-slate-700 focus:border-emerald-500 outline-none transition-colors"
           />
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Identity Type</label>
+          <select
+            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-slate-300 focus:border-emerald-500 outline-none transition-colors"
+            value={accountType}
+            onChange={(e) => setAccountType(e.target.value)}
+          >
+            <option value="any">Any (prefer authenticated)</option>
+            <option value="authenticated">Authenticated only (logged-in accounts)</option>
+            <option value="anonymous">Anonymous only (FYP cookies)</option>
+          </select>
         </div>
 
         {isProfileBoost && (
