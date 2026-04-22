@@ -1,7 +1,7 @@
 # 10 — View Registration Strategy
 
 **Last Updated:** 2026-04-22
-**Status:** Path B (anonymous persistence) in progress, Path A (authenticated accounts) planned
+**Status:** Path B tested and FAILED. Dual-path architecture implementing both A + B with runtime selection.
 
 ---
 
@@ -120,7 +120,43 @@ profiles/                          # gitignored, Docker volume mounted
 
 ---
 
-### Path A — Authenticated Accounts (Fallback if Path B Fails)
+---
+
+## Dual-Path Architecture (Runtime Selectable)
+
+Both paths coexist in the same system. The `account_type` field on each identity determines which path is used. The dispatch request includes an optional `account_type` parameter to filter identity selection.
+
+```
+Identity Pool
+├── anonymous (Path B)     → FYP-warmed cookies, no login
+│   └── Lower trust, free, unlimited creation
+│
+└── authenticated (Path A) → Real TikTok session cookies
+    └── Higher trust, requires account + SIM, limited pool
+
+Dispatch Request:
+  POST /dispatch {
+    "task_type": "tiktok_views",
+    "target_url": "...",
+    "volume": 5,
+    "account_type": "authenticated"    ← optional, defaults to "any"
+  }
+
+  account_type options:
+    "authenticated" → only use logged-in identities
+    "anonymous"     → only use anonymous identities
+    "any" (default) → prefer authenticated, fall back to anonymous
+```
+
+**Why both paths:**
+- Anonymous identities are free, unlimited, and useful for low-value tasks (profile scraping, feed simulation)
+- Authenticated identities are scarce and valuable — used for actual view generation
+- The system gracefully falls back: if no authenticated identities are available, it can use anonymous ones
+- Allows A/B testing: dispatch same video with both types, compare registration rates
+
+---
+
+### Path A — Authenticated Accounts
 
 **Goal:** Log into real TikTok accounts, giving each identity maximum platform trust.
 
@@ -258,32 +294,110 @@ POST /api/v1/identities/{id}/recover
 
 ## Implementation Timeline
 
-| Phase | What | When | Depends On |
-|-------|------|------|-----------|
-| **B1** | Profile persistence (cookies save/load) | Now | Nothing |
-| **B2** | FYP warm-up task | Now | B1 |
-| **B3** | FYP browse before target navigation | Now | B1 |
-| **B4** | Test: do anonymous persistent views count? | After B1-B3 | B3 |
-| **A1** | Schema + API for authenticated accounts | After B4 fails | B4 result |
-| **A2** | ADB phone setup on HP Z420 | After A1 | USB hub + phones |
-| **A3** | Account creation automation (Appium) | After A2 | A2 |
-| **A4** | Cookie export from physical devices | After A3 | A3 |
-| **A5** | Import flow + session health checks | After A4 | A4 |
-| **A6** | Full authenticated view pipeline test | After A5 | A5 |
+| Phase | What | Status | Notes |
+|-------|------|--------|-------|
+| **B1** | Profile persistence (cookies save/load) | DONE | Playwright storage_state per identity |
+| **B2** | FYP warm-up task | DONE | browser_warmup Celery task |
+| **B3** | FYP browse before target navigation | DONE | Auto-warmup on first view (3 FYP videos) |
+| **B4** | Test: do anonymous persistent views count? | FAILED | Views not registered after 24 hours |
+| **D1** | Dual-path: add account_type to Identity model + migration | In Progress | |
+| **D2** | Dual-path: account_type filter in identity selection | In Progress | |
+| **D3** | Dual-path: account_type param in dispatch request | In Progress | |
+| **D4** | Manual session import endpoint | In Progress | Import cookies from manual browser login |
+| **D5** | Session health check endpoint | In Progress | Verify if saved session is still logged in |
+| **D6** | Test: manually log in, export cookies, import, dispatch views | Next | |
+| **A1** | ADB phone setup on HP Z420 | Planned | USB hub + phones |
+| **A2** | Account creation automation (Appium) | Planned | After A1 |
+| **A3** | Automated cookie export from physical devices | Planned | After A2 |
 
 ---
 
-## Decision Point
+## Path B Test Results
 
-After implementing Path B (B1-B4), test with 10 views on a video with a known view count:
+| Date | Video | Views Before | Views After (24hr) | Result |
+|------|-------|-------------|--------------------| --------|
+| 2026-04-22 | @transylvania_trails (5 videos, 10 views total) | Noted | No change | FAILED — anonymous sessions not counted |
 
-- **Views appear within 30 min** → Path B works, continue with anonymous persistence
-- **Views don't appear** → Move to Path A, start account sourcing
+**Conclusion:** TikTok does not count views from anonymous browser sessions, even with persistent cookies, FYP pre-browse, and stealth. **Authenticated accounts required for view registration.**
 
-Document the test results here:
+---
 
-### Path B Test Results
+## Dual-Path Implementation Plan (D1-D6)
 
-| Date | Video | Views Before | Views After (30min) | Views After (24hr) | Result |
-|------|-------|-------------|--------------------|--------------------|--------|
-| | | | | | |
+### D1: Identity Model Changes
+
+```sql
+ALTER TABLE identities ADD COLUMN account_type VARCHAR(20) DEFAULT 'anonymous';
+-- 'anonymous' = Path B (FYP cookies only, no login)
+-- 'authenticated' = Path A (logged-in TikTok session)
+
+ALTER TABLE identities ADD COLUMN account_status VARCHAR(20) DEFAULT 'active';
+-- 'active', 'cooldown', 'flagged', 'suspended'
+-- (existing 'status' field kept for backwards compat)
+```
+
+### D2: Identity Selection with account_type Filter
+
+```python
+# In identity_mesh.py — get_best_identity_for_task():
+# New param: account_type: Optional[str] = None
+#   "authenticated" → only authenticated identities
+#   "anonymous" → only anonymous identities
+#   "any" or None → prefer authenticated, fall back to anonymous
+```
+
+### D3: Dispatch Request Schema Update
+
+```python
+class DispatchRequest(BaseModel):
+    task_type: TaskType
+    target_url: str
+    volume: int = 1
+    drip_minutes: Optional[int] = None
+    account_type: Optional[str] = None  # "authenticated", "anonymous", or None (any)
+```
+
+### D4: Manual Session Import Endpoint
+
+```
+POST /api/v1/identities/import-session
+Body: {
+  "username": "real_tiktok_user",
+  "platform": "tiktok",
+  "cookies_json": "[{\"name\": \"sessionid\", \"value\": \"...\", ...}]",
+  "user_agent": "Mozilla/5.0 ..."
+}
+
+Flow:
+1. Create or update identity with account_type = "authenticated"
+2. Save cookies_json as Playwright storage_state format to profiles/tiktok/<username>/state.json
+3. Return identity_id
+```
+
+**How to get cookies manually:**
+1. Open Chrome, go to TikTok, log in manually
+2. Open DevTools → Application → Cookies → copy all TikTok cookies
+3. Or use a browser extension like "EditThisCookie" to export as JSON
+4. POST to /import-session with the cookies
+
+### D5: Session Health Check
+
+```
+GET /api/v1/identities/{id}/health
+
+Flow:
+1. Load saved profile for the identity
+2. Launch stealth browser with profile
+3. Navigate to https://www.tiktok.com
+4. Check if user menu / avatar is visible (indicates logged in)
+5. Return { "logged_in": true/false, "cookies_valid": true/false }
+```
+
+### D6: End-to-End Test
+
+1. Manually create a TikTok account on phone
+2. Log into TikTok in Chrome on dev machine
+3. Export cookies via DevTools
+4. Import via POST /import-session
+5. Dispatch a view task with account_type="authenticated"
+6. Check if view registers within 30 minutes

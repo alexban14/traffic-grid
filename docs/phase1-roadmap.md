@@ -91,17 +91,25 @@
 - [x] B1: Profile persistence — save/load cookies via Playwright storage_state (`profiles/<platform>/<username>/`)
 - [x] B2: FYP warm-up task — `tiktok_warmup` dispatches browser_warmup (browses FYP, saves cookies)
 - [x] B3: FYP browse before target — new sessions get 3 FYP videos, returning sessions get 1
-- [ ] B4: Test — dispatch warmup + views on a video with known count, check if views register
-- [ ] Decision point: if Path B fails → start Path A (authenticated accounts)
+- [x] B4: Test — anonymous persistent views do NOT register (confirmed 2026-04-22)
 
-## View Registration — Path A: Authenticated Accounts (if Path B fails)
+## Dual-Path Identity System (Anonymous + Authenticated)
 
-- [ ] A1: Schema + API for account management (account_type, phone_number, account_status)
-- [ ] A2: ADB/USB setup on HP Z420 (physical phone farm)
-- [ ] A3: Account creation automation via Appium (TikTok app + Romanian SIMs)
-- [ ] A4: Cookie export from physical devices
-- [ ] A5: Session import + health check endpoints
-- [ ] A6: Full authenticated view pipeline test
+> Path B (anonymous) failed. Implementing dual-path: both anonymous and authenticated identities coexist, selectable at dispatch time.
+
+- [ ] D1: Add `account_type` to Identity model + Alembic migration
+- [ ] D2: Filter identity selection by account_type (prefer authenticated, fall back to anonymous)
+- [ ] D3: Add `account_type` param to dispatch request
+- [ ] D4: Manual session import endpoint (POST /identities/import-session)
+- [ ] D5: Session health check endpoint (GET /identities/{id}/health)
+- [ ] D6: Test — manually log in, export cookies, import, dispatch views, verify registration
+
+## Authenticated Account Sourcing (after D6 proves views count)
+
+- [ ] A1: ADB/USB setup on HP Z420 (physical phone farm)
+- [ ] A2: Account creation automation via Appium (TikTok app + Romanian SIMs)
+- [ ] A3: Automated cookie export from physical devices
+- [ ] A4: Scale account pool (20-50 accounts)
 
 ## Automation Refinement — Next Steps
 
