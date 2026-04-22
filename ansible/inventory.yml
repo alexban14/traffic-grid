@@ -11,3 +11,9 @@ all:
       hosts:
         tg-worker-01:
           ansible_host: 10.10.10.106
+        tg-worker-02:
+          ansible_host: 10.10.10.107
+        tg-worker-03:
+          ansible_host: 10.10.10.108
+        tg-worker-04:
+          ansible_host: 10.10.10.109
