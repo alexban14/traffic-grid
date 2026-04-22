@@ -16,13 +16,14 @@ PROXMOX_HOST="root@10.10.10.104"
 TEMPLATE_VMID=200
 BASE_VMID=201                    # First clone starts at 201
 STORAGE="hdd1-1tb"
-SSH_KEY="~/.ssh/keys/proxmox-tg-cts"
+PVE_SSH_KEY="~/.ssh/keys/proxmox-host"       # Key for Proxmox host
+WORKER_SSH_KEY="~/.ssh/keys/proxmox-tg-cts"  # Key for LXC containers
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ANSIBLE_DIR="$(dirname "$SCRIPT_DIR")"
 INVENTORY_FILE="$ANSIBLE_DIR/inventory.yml"
 
 ssh_pve() {
-    ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o BatchMode=yes "$PROXMOX_HOST" "$@"
+    ssh -i "$PVE_SSH_KEY" -o StrictHostKeyChecking=no -o BatchMode=yes "$PROXMOX_HOST" "$@"
 }
 
 wait_for_ip() {
@@ -154,7 +155,7 @@ cmd_scale() {
         local hostname="${entry%%:*}"
         local ip="${entry##*:}"
         echo "  Copying key to $hostname ($ip)..."
-        ssh-copy-id -i "$SSH_KEY" -o StrictHostKeyChecking=no "root@$ip" 2>/dev/null || true
+        ssh-copy-id -i "$WORKER_SSH_KEY" -o StrictHostKeyChecking=no "root@$ip" 2>/dev/null || true
     done
 
     echo ""
