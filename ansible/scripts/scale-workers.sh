@@ -22,7 +22,7 @@ ANSIBLE_DIR="$(dirname "$SCRIPT_DIR")"
 INVENTORY_FILE="$ANSIBLE_DIR/inventory.yml"
 
 ssh_pve() {
-    ssh -i "$SSH_KEY" "$PROXMOX_HOST" "$@"
+    ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o BatchMode=yes "$PROXMOX_HOST" "$@"
 }
 
 wait_for_ip() {
@@ -93,6 +93,12 @@ cmd_scale() {
 
     local new_workers=()
 
+    # Ensure template has a snapshot for cloning (avoids stopping it)
+    if ! ssh_pve "pct listsnapshot $TEMPLATE_VMID" 2>/dev/null | grep -q "base"; then
+        echo "Creating snapshot 'base' on template (VMID $TEMPLATE_VMID)..."
+        ssh_pve "pct snapshot $TEMPLATE_VMID base --description 'Base template for worker cloning'"
+    fi
+
     for i in $(seq 1 $to_create); do
         local vmid=$next_vmid
         local worker_num=$((existing + i))
@@ -100,11 +106,8 @@ cmd_scale() {
 
         echo "[$i/$to_create] Creating $hostname (VMID $vmid)..."
 
-        # Clone from template
-        ssh_pve "pct clone $TEMPLATE_VMID $vmid --hostname $hostname --storage $STORAGE --full" 2>&1
-
-        # Set unique MAC address (Proxmox generates one, but let's make sure hostname is set)
-        ssh_pve "pct set $vmid --hostname $hostname"
+        # Clone from template snapshot (linked clone — fast, no need to stop template)
+        ssh_pve "pct clone $TEMPLATE_VMID $vmid --hostname $hostname --snapname base" 2>&1
 
         # Start the container
         ssh_pve "pct start $vmid"
