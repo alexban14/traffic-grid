@@ -79,9 +79,7 @@ SCREEN_RESOLUTIONS = [
 def _generate_username() -> str:
     first = random.choice(RO_FIRST_NAMES)
     last = random.choice(RO_LAST_NAMES)
-    yr = str(random.randint(90, 9))  # 90-09 (birth year suffix)
-    if int(yr) < 10:
-        yr = f"0{yr}"
+    yr = random.choice([str(y).zfill(2) for y in list(range(90, 100)) + list(range(0, 10))])
     num = str(random.randint(1, 999))
     pattern = random.choice(USERNAME_PATTERNS)
     return pattern.format(first=first, last=last, yr=yr, num=num)
