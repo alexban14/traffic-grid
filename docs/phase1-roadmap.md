@@ -50,8 +50,9 @@
 - [x] Worker connects to UM680 Redis across VLANs (10.10.10.x → 10.20.20.200:18425)
 - [x] Worker receives and executes tasks from the shared Celery queue
 - [x] SSH key-based auth for Ansible (ed25519 key: `~/.ssh/keys/proxmox-tg-cts`)
-- [ ] Write scaling script to clone N LXC workers from base template
-- [ ] DNS resolution fix (set nameserver to 1.1.1.1 permanently in LXC template)
+- [x] Scaling script: `ansible/scripts/scale-workers.sh <N>` — clones LXC, sets up SSH, runs Ansible
+- [x] DNS resolution fix (nameserver 1.1.1.1 set in tg-worker-01 template)
+- [ ] Scale test: spin up 5 workers and run profile boost with volume=10
 
 ## First End-to-End View (MILESTONE ACHIEVED 2026-04-21)
 
