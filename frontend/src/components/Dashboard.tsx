@@ -1,12 +1,12 @@
-import React from "react";
+import React, { useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Activity, Shield, Users, Server } from "lucide-react";
-import type { StatsResponse } from "../types/api";
 
 import { TaskWizard } from "./TaskWizard";
 import { WorkerGrid } from "./WorkerGrid";
 import { LiveConsole } from "./LiveConsole";
 import { useStats } from "../hooks/useStats";
+import { useWorkers } from "../hooks/useGridData";
 
 interface StatCardProps {
   title: string;
@@ -30,23 +30,29 @@ const StatCard = ({ title, value, icon: Icon, color, loading }: StatCardProps) =
 
 export const Dashboard = () => {
   const { data: stats, isLoading } = useStats();
+  const { data: workers } = useWorkers();
+  const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
+
+  const activeWorkerId = selectedWorkerId || workers?.[0]?.id || null;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-50 p-8">
-      <header className="flex justify-between items-center mb-12">
+    <div>
+      <header className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold">TrafficGrid Control</h1>
-          <p className="text-slate-500">Real-time Bot Farm Orchestration</p>
+          <h2 className="text-2xl font-bold">Dashboard</h2>
+          <p className="text-slate-500 text-sm mt-1">Real-time Bot Farm Orchestration</p>
         </div>
         <div className="flex gap-4">
           <div className="flex items-center gap-2 px-4 py-2 bg-emerald-950/30 border border-emerald-500/30 rounded-lg">
             <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-            <span className="text-xs text-emerald-500 font-bold uppercase tracking-wider">Gateway Online</span>
+            <span className="text-xs text-emerald-500 font-bold uppercase tracking-wider">
+              Gateway Online
+            </span>
           </div>
         </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard
           title="Active Workers"
           value={stats?.active_workers ?? 0}
@@ -80,7 +86,33 @@ export const Dashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-1 space-y-8">
           <TaskWizard />
-          <LiveConsole workerId="S24-ULTRA-01" />
+          <div>
+            {workers && workers.length > 1 && (
+              <div className="mb-3">
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+                  Console Worker
+                </label>
+                <select
+                  value={activeWorkerId || ""}
+                  onChange={(e) => setSelectedWorkerId(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-300 focus:border-emerald-500 outline-none"
+                >
+                  {workers.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name || w.id}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {activeWorkerId ? (
+              <LiveConsole workerId={activeWorkerId} />
+            ) : (
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 text-center text-slate-500 text-sm">
+                No workers available for live console
+              </div>
+            )}
+          </div>
         </div>
         <div className="lg:col-span-2">
           <WorkerGrid />

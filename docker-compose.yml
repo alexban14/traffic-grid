@@ -32,6 +32,8 @@ services:
     environment:
       - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
       - ENV=${ENV:-development}
     ports:
       - "18420:8000"

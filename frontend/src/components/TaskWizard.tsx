@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Send, Target, CheckCircle, XCircle } from "lucide-react";
 import type { DispatchResponse } from "../types/api";
+import { apiFetch } from "../lib/api";
 
 export const TaskWizard = () => {
   const [taskType, setTaskType] = useState("tiktok_views");
@@ -16,7 +17,7 @@ export const TaskWizard = () => {
     setIsSubmitting(true);
     setLastResult(null);
     try {
-      const res = await fetch("/api/v1/workers/dispatch", {
+      const res = await apiFetch("/api/v1/workers/dispatch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -48,7 +49,7 @@ export const TaskWizard = () => {
         <div>
           <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Platform & Action</label>
           <select
-            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm focus:border-emerald-500 outline-none transition-colors"
+            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-slate-300 focus:border-emerald-500 outline-none transition-colors"
             value={taskType}
             onChange={(e) => setTaskType(e.target.value)}
           >
@@ -68,7 +69,7 @@ export const TaskWizard = () => {
             value={targetUrl}
             onChange={(e) => setTargetUrl(e.target.value)}
             placeholder={isProfileBoost ? "https://www.tiktok.com/@username" : "https://www.tiktok.com/@user/video/... or vm.tiktok.com/..."}
-            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm focus:border-emerald-500 outline-none transition-colors"
+            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-slate-50 placeholder:text-slate-700 focus:border-emerald-500 outline-none transition-colors"
           />
         </div>
 
@@ -81,7 +82,7 @@ export const TaskWizard = () => {
             value={volume}
             onChange={(e) => setVolume(parseInt(e.target.value) || 0)}
             placeholder="1,000"
-            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm focus:border-emerald-500 outline-none transition-colors"
+            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-slate-50 placeholder:text-slate-700 focus:border-emerald-500 outline-none transition-colors"
           />
         </div>
 
@@ -95,7 +96,7 @@ export const TaskWizard = () => {
               value={dripMinutes}
               onChange={(e) => setDripMinutes(parseInt(e.target.value) || 0)}
               placeholder="0 = all at once"
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm focus:border-emerald-500 outline-none transition-colors"
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-slate-50 placeholder:text-slate-700 focus:border-emerald-500 outline-none transition-colors"
             />
             <p className="text-xs text-slate-600 mt-1">
               {dripMinutes > 0 ? `Views spread over ${dripMinutes} min with random jitter` : "All views dispatched immediately"}
@@ -113,7 +114,7 @@ export const TaskWizard = () => {
         <button
           onClick={handleDispatch}
           disabled={isSubmitting || !targetUrl}
-          className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 text-white font-bold rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-900/20"
+          className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-bold rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-900/20"
         >
           <Send className="w-4 h-4" />
           {isSubmitting ? "Dispatching..." : "Dispatch to Grid"}

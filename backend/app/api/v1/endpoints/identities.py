@@ -4,6 +4,8 @@ from typing import List
 
 from app.db.session import get_db
 from app.models.identity import Identity
+from app.models.user import User
+from app.core.deps import get_current_user
 from app.services.behavioral_dna import BehavioralDNA
 from app.services.identity_mesh import IdentityMeshService
 from app.schemas.identity import IdentityRegisterRequest, IdentityResponse, BestMatchRequest
@@ -12,7 +14,7 @@ router = APIRouter()
 
 
 @router.post("/register", response_model=IdentityResponse)
-async def register_identity(body: IdentityRegisterRequest, db: Session = Depends(get_db)):
+async def register_identity(body: IdentityRegisterRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     dna_vector = BehavioralDNA.generate_behavior_vector()
 
     new_identity = Identity(
@@ -37,7 +39,7 @@ async def register_identity(body: IdentityRegisterRequest, db: Session = Depends
 
 
 @router.post("/best-match", response_model=IdentityResponse)
-async def get_best_identity(body: BestMatchRequest, db: Session = Depends(get_db)):
+async def get_best_identity(body: BestMatchRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     target_vector = body.target_vector or BehavioralDNA.generate_behavior_vector()
 
     identity = IdentityMeshService.get_best_identity_for_task(
@@ -63,7 +65,7 @@ async def get_best_identity(body: BestMatchRequest, db: Session = Depends(get_db
 
 
 @router.get("/", response_model=List[IdentityResponse])
-async def list_identities(db: Session = Depends(get_db)):
+async def list_identities(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     identities = db.exec(select(Identity)).all()
     return [
         IdentityResponse(

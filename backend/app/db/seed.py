@@ -10,6 +10,9 @@ import logging
 from sqlmodel import Session, select
 from app.db.session import engine
 from app.models.identity import Identity, Proxy
+from app.models.user import User
+from app.core.config import settings
+from app.core.security import hash_password
 from app.services.behavioral_dna import BehavioralDNA
 
 logger = logging.getLogger(__name__)
@@ -145,9 +148,28 @@ def seed_proxies(session: Session):
     logger.info("Seeded 2 placeholder proxies (inactive)")
 
 
+def seed_admin_user(session: Session):
+    """Create default admin user if no users exist."""
+    existing = session.exec(select(User)).first()
+    if existing:
+        logger.info("Admin user already exists, skipping seed")
+        return
+
+    password = settings.ADMIN_PASSWORD
+    admin = User(
+        username="admin",
+        hashed_password=hash_password(password),
+        is_active=True,
+    )
+    session.add(admin)
+    session.commit()
+    logger.info("Created default admin user (username: admin)")
+
+
 def run_seed():
     """Run all seeders."""
     with Session(engine) as session:
+        seed_admin_user(session)
         seed_identities(session, count=20, platform="tiktok")
         seed_identities(session, count=10, platform="youtube")
         seed_proxies(session)

@@ -4,6 +4,8 @@ from app.db.session import get_db
 from app.models.identity import Identity
 from app.models.worker import Worker
 from app.models.task import Task
+from app.models.user import User
+from app.core.deps import get_current_user
 from app.schemas.stats import StatsResponse
 from datetime import datetime, timedelta
 
@@ -11,7 +13,7 @@ router = APIRouter()
 
 
 @router.get("/", response_model=StatsResponse)
-async def get_stats(db: Session = Depends(get_db)):
+async def get_stats(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     heartbeat_cutoff = datetime.utcnow() - timedelta(minutes=5)
     active_workers = db.exec(
         select(func.count(Worker.id)).where(Worker.last_heartbeat >= heartbeat_cutoff)

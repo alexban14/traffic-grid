@@ -1,14 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import type { WorkerStatus, ProxyHealth } from "../types/api";
+import { apiGet } from "../lib/api";
 
 export const useWorkers = () => {
   return useQuery<WorkerStatus[]>({
     queryKey: ["workers"],
-    queryFn: async () => {
-      const res = await fetch("/api/v1/workers/status");
-      if (!res.ok) throw new Error("Network response was not ok");
-      return res.json();
-    },
+    queryFn: () => apiGet<WorkerStatus[]>("/api/v1/workers/status"),
     refetchInterval: 5000,
   });
 };
@@ -16,11 +13,7 @@ export const useWorkers = () => {
 export const useProxies = () => {
   return useQuery<ProxyHealth[]>({
     queryKey: ["proxies"],
-    queryFn: async () => {
-      const res = await fetch("/api/v1/proxies/health");
-      if (!res.ok) throw new Error("Network response was not ok");
-      return res.json();
-    },
+    queryFn: () => apiGet<ProxyHealth[]>("/api/v1/proxies/health"),
     refetchInterval: 10000,
   });
 };

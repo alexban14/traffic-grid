@@ -3,9 +3,11 @@ from sqlmodel import Session, select
 from app.db.session import get_db
 from app.models.worker import Worker
 from app.models.task import Task
+from app.models.user import User
 from app.schemas.task import DispatchRequest, DispatchResponse, TaskStatus
 from app.schemas.worker import WorkerHeartbeatRequest, WorkerHeartbeatResponse, WorkerStatusResponse
 from app.core.celery_app import celery_app
+from app.core.deps import get_current_user
 from app.core.websocket import manager
 from app.services.identity_mesh import IdentityMeshService
 from app.services.behavioral_dna import BehavioralDNA
@@ -16,7 +18,7 @@ router = APIRouter()
 
 
 @router.post("/dispatch", response_model=DispatchResponse)
-async def dispatch_task(body: DispatchRequest, db: Session = Depends(get_db)):
+async def dispatch_task(body: DispatchRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     task = Task(
         type=body.task_type.value,
         target_url=body.target_url,
@@ -98,7 +100,7 @@ async def worker_heartbeat(body: WorkerHeartbeatRequest, db: Session = Depends(g
 
 
 @router.get("/status", response_model=List[WorkerStatusResponse])
-async def get_workers_status(db: Session = Depends(get_db)):
+async def get_workers_status(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     workers = db.exec(select(Worker)).all()
     cutoff = datetime.utcnow() - timedelta(minutes=5)
     return [

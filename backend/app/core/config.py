@@ -18,6 +18,12 @@ class Settings(BaseSettings):
 
     REDIS_URL: str = "redis://redis:6379/0"
 
+    # JWT / Auth
+    JWT_SECRET_KEY: str = "CHANGE_ME"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_HOURS: int = 24
+    ADMIN_PASSWORD: str = "admin"
+
     @model_validator(mode="after")
     def assemble_db_url(self):
         if not self.DATABASE_URL:
