@@ -149,12 +149,23 @@ cmd_scale() {
 
         # Check if already in inventory
         if grep -q "$hostname" "$INVENTORY_FILE"; then
-            echo "  $hostname already in inventory, updating IP..."
-            sed -i "s|$hostname:.*|$hostname:\n          ansible_host: $ip|" "$INVENTORY_FILE"
+            echo "  $hostname already in inventory, skipping..."
         else
             echo "  Adding $hostname ($ip) to inventory..."
-            # Append to workers group (before the last line of the hosts block)
-            sed -i "/tg-worker-01:/a\\        $hostname:\n          ansible_host: $ip" "$INVENTORY_FILE"
+            # Use python for reliable YAML manipulation
+            python3 -c "
+import sys
+lines = open('$INVENTORY_FILE').readlines()
+out = []
+for line in lines:
+    out.append(line)
+    if 'tg-worker-01:' in line:
+        # Find indentation
+        indent = len(line) - len(line.lstrip())
+        out.append(' ' * indent + '$hostname:\n')
+        out.append(' ' * (indent + 2) + 'ansible_host: $ip\n')
+open('$INVENTORY_FILE', 'w').writelines(out)
+"
         fi
     done
 
