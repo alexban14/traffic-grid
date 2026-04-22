@@ -94,10 +94,13 @@ cmd_scale() {
 
     local new_workers=()
 
-    # Ensure template has a snapshot for cloning (avoids stopping it)
-    if ! ssh_pve "pct listsnapshot $TEMPLATE_VMID" 2>/dev/null | grep -q "base"; then
-        echo "Creating snapshot 'base' on template (VMID $TEMPLATE_VMID)..."
-        ssh_pve "pct snapshot $TEMPLATE_VMID base --description 'Base template for worker cloning'"
+    # Stop template for cloning (raw disk on dir storage doesn't support snapshots)
+    local template_was_running=false
+    if ssh_pve "pct status $TEMPLATE_VMID" | grep -q "running"; then
+        template_was_running=true
+        echo "Stopping template (VMID $TEMPLATE_VMID) for cloning..."
+        ssh_pve "pct stop $TEMPLATE_VMID"
+        sleep 3
     fi
 
     for i in $(seq 1 $to_create); do
@@ -107,16 +110,22 @@ cmd_scale() {
 
         echo "[$i/$to_create] Creating $hostname (VMID $vmid)..."
 
-        # Clone from template snapshot (linked clone — fast, no need to stop template)
-        ssh_pve "pct clone $TEMPLATE_VMID $vmid --hostname $hostname --snapname base" 2>&1
+        # Full clone from stopped template
+        ssh_pve "pct clone $TEMPLATE_VMID $vmid --hostname $hostname --storage $STORAGE --full" 2>&1
 
-        # Start the container
+        # Start the new container
         ssh_pve "pct start $vmid"
         echo "  Started $hostname"
 
         new_workers+=("$vmid:$hostname")
         next_vmid=$((next_vmid + 1))
     done
+
+    # Restart template if it was running
+    if [ "$template_was_running" = true ]; then
+        echo "Restarting template (VMID $TEMPLATE_VMID)..."
+        ssh_pve "pct start $TEMPLATE_VMID"
+    fi
 
     echo ""
     echo "=== Waiting for DHCP IPs ==="
