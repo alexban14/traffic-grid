@@ -2,15 +2,15 @@ import random
 import logging
 import asyncio
 from typing import Optional
-from playwright.async_api import async_playwright, Page
+from playwright.async_api import async_playwright, Page, BrowserContext
 from playwright_stealth import Stealth
 from app.drivers.base import PlatformDriver
 from app.models.identity import Identity, Proxy
 from app.services.behavioral_dna import BehavioralDNA
+from app.services.profile_manager import ProfileManager
 
 logger = logging.getLogger(__name__)
 
-# TikTok cookie consent / popup selectors (they change frequently)
 COOKIE_ACCEPT_SELECTORS = [
     'button:has-text("Accept all")',
     'button:has-text("Accept All")',
@@ -25,9 +25,15 @@ LOGIN_DISMISS_SELECTORS = [
     '.login-modal button.close',
 ]
 
+TIKTOK_FYP_URL = "https://www.tiktok.com/foryou"
+
 
 class TikTokBrowserDriver(PlatformDriver):
     platform = "tiktok"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.profile_mgr = ProfileManager()
 
     async def _dismiss_popups(self, page: Page):
         """Dismiss cookie consent and login prompts that block video playback."""
@@ -55,13 +61,74 @@ class TikTokBrowserDriver(PlatformDriver):
             except Exception:
                 continue
 
+    async def _create_context(self, browser, identity: Identity, proxy: Optional[Proxy] = None) -> BrowserContext:
+        """Create a browser context, loading saved profile if available."""
+        context_opts = {
+            "user_agent": identity.user_agent,
+            "viewport": {"width": 1920, "height": 1080},
+            "locale": "en-US",
+            "timezone_id": "Europe/Bucharest",
+        }
+
+        # Load saved session state if profile exists
+        state_path = self.profile_mgr.get_storage_state_path("tiktok", identity.username)
+        if state_path:
+            context_opts["storage_state"] = state_path
+            await self.log(f"Loaded saved profile for {identity.username}")
+        else:
+            await self.log(f"No saved profile for {identity.username} (fresh session)")
+
+        return await browser.new_context(**context_opts)
+
+    async def _save_profile(self, context: BrowserContext, identity: Identity):
+        """Save browser session state to disk."""
+        try:
+            await self.profile_mgr.save_context_state(context, "tiktok", identity.username)
+            await self.log(f"Saved profile for {identity.username}")
+        except Exception as e:
+            logger.warning(f"Failed to save profile for {identity.username}: {e}")
+
+    async def _browse_fyp(self, page: Page, num_videos: int = 2, min_watch: int = 8, max_watch: int = 25):
+        """Browse the For You page, watching a few random videos to build session trust."""
+        try:
+            await self.log(f"Browsing FYP ({num_videos} videos)...")
+            await page.goto(TIKTOK_FYP_URL, wait_until="domcontentloaded", timeout=30000)
+            await self._dismiss_popups(page)
+            await asyncio.sleep(random.uniform(2, 4))
+
+            for i in range(num_videos):
+                # Wait for video to load
+                playback_ok = await self._wait_for_video_playback(page, timeout=10)
+                if playback_ok:
+                    watch_time = random.randint(min_watch, max_watch)
+                    await self.log(f"  FYP video {i + 1}/{num_videos}: watching {watch_time}s")
+                    await asyncio.sleep(watch_time)
+
+                    # Occasional like on FYP (low probability — builds natural pattern)
+                    if random.random() < 0.1:
+                        try:
+                            like_btn = page.locator('[data-e2e="like-icon"]').first
+                            if await like_btn.is_visible(timeout=1000):
+                                await like_btn.click()
+                                await self.log(f"  FYP: liked video {i + 1}")
+                                await asyncio.sleep(random.uniform(0.5, 1.5))
+                        except Exception:
+                            pass
+
+                # Scroll to next video (swipe up)
+                if i < num_videos - 1:
+                    await page.mouse.wheel(0, random.randint(400, 700))
+                    await asyncio.sleep(random.uniform(1.5, 3))
+
+            await self.log("FYP browse complete")
+        except Exception as e:
+            await self.log(f"FYP browse error (non-critical): {e}")
+
     async def _wait_for_video_playback(self, page: Page, timeout: int = 15) -> bool:
         """Wait for the TikTok video element to start playing."""
         try:
-            # Wait for video element to exist
             await page.wait_for_selector("video", timeout=timeout * 1000)
 
-            # Check if the video is playing (not paused, has currentTime > 0)
             is_playing = await page.evaluate("""
                 () => {
                     const video = document.querySelector('video');
@@ -71,10 +138,8 @@ class TikTokBrowserDriver(PlatformDriver):
             """)
 
             if is_playing:
-                await self.log("Video playback confirmed (already playing)")
                 return True
 
-            # If not playing yet, try clicking the video to trigger play
             try:
                 video = page.locator("video").first
                 await video.click(timeout=3000)
@@ -82,7 +147,6 @@ class TikTokBrowserDriver(PlatformDriver):
             except Exception:
                 pass
 
-            # Poll for playback start
             for _ in range(timeout):
                 is_playing = await page.evaluate("""
                     () => {
@@ -92,15 +156,11 @@ class TikTokBrowserDriver(PlatformDriver):
                     }
                 """)
                 if is_playing:
-                    await self.log("Video playback confirmed (started after interaction)")
                     return True
                 await asyncio.sleep(1)
 
-            await self.log("Warning: video playback could not be confirmed")
             return False
-
-        except Exception as e:
-            await self.log(f"Warning: video detection failed: {e}")
+        except Exception:
             return False
 
     async def _get_video_duration(self, page: Page) -> Optional[float]:
@@ -121,24 +181,20 @@ class TikTokBrowserDriver(PlatformDriver):
         video_duration = await self._get_video_duration(page)
 
         if video_duration:
-            # Watch 70-110% of the video (sometimes loop slightly, sometimes leave early)
             watch_factor = random.uniform(0.7, 1.1)
-            watch_time = min(video_duration * watch_factor, 90)  # cap at 90s
-            watch_time = max(watch_time, 5)  # minimum 5s
+            watch_time = min(video_duration * watch_factor, 90)
+            watch_time = max(watch_time, 5)
             await self.log(f"Video duration: {video_duration:.1f}s, watching for {watch_time:.1f}s ({watch_factor:.0%})")
         else:
-            # Fallback: random dwell if we can't detect duration
             watch_time = random.randint(10, 45)
             await self.log(f"Video duration unknown, dwelling for {watch_time}s")
 
-        # Watch in small intervals, checking playback periodically
         elapsed = 0
         while elapsed < watch_time:
             chunk = min(random.uniform(3, 8), watch_time - elapsed)
             await asyncio.sleep(chunk)
             elapsed += chunk
 
-            # Occasionally check if video is still playing (TikTok might auto-pause)
             if random.random() < 0.1:
                 still_playing = await page.evaluate("""
                     () => {
@@ -163,43 +219,76 @@ class TikTokBrowserDriver(PlatformDriver):
                 browser_args.append(f"--proxy-server={proxy.protocol}://{proxy.ip_address}:{proxy.port}")
 
             browser = await p.chromium.launch(headless=True, args=browser_args)
-            context = await browser.new_context(
-                user_agent=identity.user_agent,
-                viewport={"width": 1920, "height": 1080},
-                locale="en-US",
-                timezone_id="Europe/Bucharest",
-            )
+            context = await self._create_context(browser, identity, proxy)
             page = await context.new_page()
 
             stealth = Stealth()
             await stealth.apply_stealth_async(page)
 
             try:
+                has_profile = self.profile_mgr.has_profile("tiktok", identity.username)
+
+                # Browse FYP first to build/refresh session
+                if not has_profile:
+                    # First time: longer FYP browse to establish cookies
+                    await self._browse_fyp(page, num_videos=3, min_watch=10, max_watch=30)
+                else:
+                    # Returning: quick FYP refresh
+                    await self._browse_fyp(page, num_videos=1, min_watch=5, max_watch=15)
+
+                # Navigate to target video
                 await self.log(f"Navigating to {url}...")
                 await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-
-                # Handle popups before anything else
                 await self._dismiss_popups(page)
 
-                # Wait for and verify video playback
                 playback_ok = await self._wait_for_video_playback(page)
                 if not playback_ok:
                     await self.log("Proceeding despite playback uncertainty")
 
-                # Watch the video (duration-aware)
                 await self._watch_video(page)
-
-                # Behavioral scroll (slight, natural movement while watching)
                 await BehavioralDNA.human_scroll(page)
-
-                # Random interaction (like, comment check, etc.)
                 await BehavioralDNA.curiosity_action(page)
+
+                # Save profile after successful view
+                await self._save_profile(context, identity)
 
                 await self.log("View completed successfully.")
                 return True
             except Exception as e:
                 logger.error(f"[{self.worker_id}] TikTok view failed: {e}")
                 await self.log(f"View failed: {e}")
+                return False
+            finally:
+                await browser.close()
+
+    async def execute_warmup(self, identity: Identity, duration_mins: int = 3) -> bool:
+        """Browse TikTok FYP to build session cookies and trust for an identity."""
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(
+                headless=True,
+                args=["--disable-blink-features=AutomationControlled"],
+            )
+            context = await self._create_context(browser, identity)
+            page = await context.new_page()
+
+            stealth = Stealth()
+            await stealth.apply_stealth_async(page)
+
+            try:
+                # Calculate videos to watch based on duration
+                videos_to_watch = max(3, duration_mins * 2)
+                await self.log(f"Warming up {identity.username} for ~{duration_mins} min ({videos_to_watch} videos)")
+
+                await self._browse_fyp(page, num_videos=videos_to_watch, min_watch=10, max_watch=30)
+
+                # Save the warmed-up profile
+                await self._save_profile(context, identity)
+
+                await self.log(f"Warmup complete for {identity.username}")
+                return True
+            except Exception as e:
+                logger.error(f"[{self.worker_id}] Warmup failed for {identity.username}: {e}")
+                await self.log(f"Warmup failed: {e}")
                 return False
             finally:
                 await browser.close()
@@ -224,15 +313,12 @@ class TikTokBrowserDriver(PlatformDriver):
                 await page.goto(profile_url, wait_until="domcontentloaded", timeout=30000)
                 await self._dismiss_popups(page)
 
-                # Wait for the video grid to load
                 await asyncio.sleep(random.uniform(3, 5))
 
-                # Scroll down to load more videos
                 for _ in range(3):
                     await page.mouse.wheel(0, random.randint(500, 1000))
                     await asyncio.sleep(random.uniform(1.5, 3))
 
-                # Extract video links from the profile grid
                 video_urls = await page.evaluate("""
                     () => {
                         const links = document.querySelectorAll('a[href*="/video/"]');
@@ -240,7 +326,6 @@ class TikTokBrowserDriver(PlatformDriver):
                         links.forEach(link => {
                             const href = link.getAttribute('href');
                             if (href && href.includes('/video/')) {
-                                // Normalize to full URL
                                 const url = href.startsWith('http') ? href : 'https://www.tiktok.com' + href;
                                 urls.add(url);
                             }
@@ -259,7 +344,3 @@ class TikTokBrowserDriver(PlatformDriver):
                 return []
             finally:
                 await browser.close()
-
-    async def execute_warmup(self, identity: Identity, duration_mins: int) -> bool:
-        logger.info(f"[{self.worker_id}] TikTok warmup not yet implemented")
-        return False

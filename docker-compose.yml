@@ -47,6 +47,7 @@ services:
     command: celery -A app.core.celery_app:celery_app worker --loglevel=info -Q browser-queue,mobile-queue,celery
     volumes:
       - ./backend/app:/app/app
+      - ./profiles:/app/profiles
     environment:
       - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0

@@ -206,6 +206,58 @@ def browser_profile_boost(self, task_id: int, profile_url: str, views_per_video:
         return {"status": task.status, "task_id": task_id}
 
 
+@celery_app.task(base=TaskWithDB, bind=True, name="app.tasks.browser.warmup")
+def browser_warmup(self, task_id: int, identity_id: int, duration_mins: int = 3):
+    """Warm up an identity by browsing TikTok FYP to build session cookies."""
+    with self.get_session() as session:
+        task = session.get(Task, task_id)
+        if not task:
+            return {"status": "error", "message": "Task not found"}
+
+        identity = session.get(Identity, identity_id)
+        if not identity:
+            task.status = "FAILED"
+            task.error_message = f"Identity {identity_id} not found"
+            session.add(task)
+            session.commit()
+            return {"status": "error", "message": task.error_message}
+
+        task.status = "RUNNING"
+        task.started_at = datetime.utcnow()
+        session.add(task)
+        session.commit()
+
+        try:
+            from app.drivers.tiktok import TikTokBrowserDriver
+            driver = TikTokBrowserDriver(worker_id=f"celery-{self.request.id[:8]}")
+
+            loop = asyncio.new_event_loop()
+            try:
+                success = loop.run_until_complete(
+                    driver.execute_warmup(identity, duration_mins=duration_mins)
+                )
+            finally:
+                loop.close()
+
+            if success:
+                task.status = "SUCCESS"
+                task.result = {"identity": identity.username, "duration_mins": duration_mins}
+            else:
+                task.status = "FAILED"
+                task.error_message = "Warmup returned failure"
+
+        except Exception as e:
+            logger.exception(f"Warmup task {task_id} failed")
+            task.status = "FAILED"
+            task.error_message = str(e)
+
+        task.completed_at = datetime.utcnow()
+        session.add(task)
+        session.commit()
+
+        return {"status": task.status, "task_id": task_id}
+
+
 @celery_app.task(base=TaskWithDB, bind=True, name="app.tasks.mobile.warmup")
 def mobile_warmup(self, task_id: int, device_id: str, duration_mins: int):
     logger.info(f"Mobile warmup requested for {device_id}, task {task_id}")

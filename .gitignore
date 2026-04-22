@@ -1,4 +1,5 @@
 database/data/
 node_modules/
 frontend/dist/
+profiles/
 .env

@@ -88,10 +88,10 @@
 
 > See [10-view-registration-strategy.md](plan/architecture/10-view-registration-strategy.md) for full plan.
 
-- [ ] B1: Profile persistence — save/load cookies per identity (`profiles/<username>/`)
-- [ ] B2: FYP warm-up task — browse For You page for 2-5 min, build session cookies
-- [ ] B3: FYP browse before target — watch 1-2 FYP videos before navigating to target
-- [ ] B4: Test — dispatch views on a video with known count, check if views register
+- [x] B1: Profile persistence — save/load cookies via Playwright storage_state (`profiles/<platform>/<username>/`)
+- [x] B2: FYP warm-up task — `tiktok_warmup` dispatches browser_warmup (browses FYP, saves cookies)
+- [x] B3: FYP browse before target — new sessions get 3 FYP videos, returning sessions get 1
+- [ ] B4: Test — dispatch warmup + views on a video with known count, check if views register
 - [ ] Decision point: if Path B fails → start Path A (authenticated accounts)
 
 ## View Registration — Path A: Authenticated Accounts (if Path B fails)

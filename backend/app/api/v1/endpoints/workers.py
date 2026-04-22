@@ -36,6 +36,21 @@ async def dispatch_task(body: DispatchRequest, db: Session = Depends(get_db)):
                 "views_per_video": body.volume,
             },
         )
+    elif body.task_type.value == "tiktok_warmup":
+        # Warmup: pre-assign identity, browse FYP to build session cookies
+        platform = "tiktok"
+        target_vector = BehavioralDNA.generate_behavior_vector()
+        identity = IdentityMeshService.get_best_identity_for_task(db, platform, target_vector)
+        identity_id = identity.id if identity else None
+
+        celery_task = celery_app.send_task(
+            "app.tasks.browser.warmup",
+            kwargs={
+                "task_id": task.id,
+                "identity_id": identity_id,
+                "duration_mins": body.volume,  # volume = minutes for warmup
+            },
+        )
     else:
         # Pre-assign identity at dispatch time (no race conditions)
         platform = body.task_type.value.replace("_views", "").replace("_warmup", "").replace("_watchtime", "")
