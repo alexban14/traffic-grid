@@ -12,7 +12,7 @@ router = APIRouter()
 
 @router.get("/", response_model=StatsResponse)
 async def get_stats(db: Session = Depends(get_db)):
-    heartbeat_cutoff = datetime.utcnow() - timedelta(seconds=60)
+    heartbeat_cutoff = datetime.utcnow() - timedelta(minutes=5)
     active_workers = db.exec(
         select(func.count(Worker.id)).where(Worker.last_heartbeat >= heartbeat_cutoff)
     ).one()

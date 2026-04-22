@@ -9,7 +9,7 @@ from app.core.celery_app import celery_app
 from app.core.websocket import manager
 from app.services.identity_mesh import IdentityMeshService
 from app.services.behavioral_dna import BehavioralDNA
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List
 
 router = APIRouter()
@@ -99,11 +99,12 @@ async def worker_heartbeat(body: WorkerHeartbeatRequest, db: Session = Depends(g
 @router.get("/status", response_model=List[WorkerStatusResponse])
 async def get_workers_status(db: Session = Depends(get_db)):
     workers = db.exec(select(Worker)).all()
+    cutoff = datetime.utcnow() - timedelta(minutes=5)
     return [
         WorkerStatusResponse(
             id=w.name,
             type="physical" if "S24" in w.type or "MOTO" in w.type else "lxc",
-            status=w.status.lower(),
+            status=w.status.lower() if w.last_heartbeat and w.last_heartbeat >= cutoff else "offline",
             load=0,
             last_seen=w.last_heartbeat,
         )
