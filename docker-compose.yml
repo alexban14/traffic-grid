@@ -10,6 +10,11 @@ services:
       - ./database/data:/var/lib/postgresql/data
     ports:
       - "18424:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
     networks:
       - tg-network
 
@@ -38,8 +43,10 @@ services:
     ports:
       - "18420:8000"
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - tg-network
 
