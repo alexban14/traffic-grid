@@ -23,6 +23,7 @@ class DispatchRequest(BaseModel):
     task_type: TaskType
     target_url: str
     volume: int = 1
+    drip_minutes: Optional[int] = None  # Spread views over N minutes (None = all at once)
 
 
 class DispatchResponse(BaseModel):

@@ -6,6 +6,7 @@ export const TaskWizard = () => {
   const [taskType, setTaskType] = useState("tiktok_views");
   const [targetUrl, setTargetUrl] = useState("");
   const [volume, setVolume] = useState(1);
+  const [dripMinutes, setDripMinutes] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isProfileBoost = taskType === "tiktok_profile_boost";
@@ -22,6 +23,7 @@ export const TaskWizard = () => {
           task_type: taskType,
           target_url: targetUrl,
           volume: parseInt(volume.toString()),
+          drip_minutes: dripMinutes > 0 ? dripMinutes : null,
         }),
       });
       if (!res.ok) throw new Error("Failed to dispatch task");
@@ -82,6 +84,24 @@ export const TaskWizard = () => {
             className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm focus:border-emerald-500 outline-none transition-colors"
           />
         </div>
+
+        {isProfileBoost && (
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+              Drip-Feed (minutes)
+            </label>
+            <input
+              type="number"
+              value={dripMinutes}
+              onChange={(e) => setDripMinutes(parseInt(e.target.value) || 0)}
+              placeholder="0 = all at once"
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm focus:border-emerald-500 outline-none transition-colors"
+            />
+            <p className="text-xs text-slate-600 mt-1">
+              {dripMinutes > 0 ? `Views spread over ${dripMinutes} min with random jitter` : "All views dispatched immediately"}
+            </p>
+          </div>
+        )}
 
         {lastResult && (
           <div className={`flex items-center gap-2 text-sm ${lastResult.success ? "text-emerald-400" : "text-rose-400"}`}>

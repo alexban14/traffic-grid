@@ -34,6 +34,7 @@ async def dispatch_task(body: DispatchRequest, db: Session = Depends(get_db)):
                 "task_id": task.id,
                 "profile_url": body.target_url,
                 "views_per_video": body.volume,
+                "drip_minutes": body.drip_minutes or 0,
             },
         )
     elif body.task_type.value == "tiktok_warmup":

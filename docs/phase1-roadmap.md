@@ -107,9 +107,9 @@
 
 - [x] Scale test: 5 workers processing 10 tasks in parallel, all SUCCESS (2026-04-22)
 - [ ] Implement YouTube watch time driver (flesh out stub)
+- [x] Worker heartbeat — auto-registers via Celery signals, dashboard shows real worker data
+- [x] Task scheduling — drip-feed views over N minutes with random jitter (`drip_minutes` param)
 - [ ] Trust score tracking: warm-up → cool-down cycle
-- [ ] Task scheduling: drip-feed views over time windows
-- [ ] Worker heartbeat (dashboard shows real worker data)
 
 ---
 

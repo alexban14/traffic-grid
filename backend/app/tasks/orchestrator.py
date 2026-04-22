@@ -106,7 +106,7 @@ def browser_view_boost(self, task_id: int, target_url: str, count: int, identity
 
 
 @celery_app.task(base=TaskWithDB, bind=True, name="app.tasks.browser.profile_boost")
-def browser_profile_boost(self, task_id: int, profile_url: str, views_per_video: int = 1):
+def browser_profile_boost(self, task_id: int, profile_url: str, views_per_video: int = 1, drip_minutes: int = 0):
     """Scrape a TikTok profile, then fan out view tasks with round-robin identity assignment."""
     with self.get_session() as session:
         task = session.get(Task, task_id)
@@ -146,13 +146,30 @@ def browser_profile_boost(self, task_id: int, profile_url: str, views_per_video:
                 f"{total_tasks_needed} tasks, {len(identities)} identities available"
             )
 
-            # Fan out with round-robin identity assignment
+            # Fan out with round-robin identity assignment + optional drip-feed
             child_task_ids = []
             identity_idx = 0
+            import random as _random
+
+            # Calculate per-task delay for drip-feed
+            if drip_minutes > 0:
+                drip_seconds = drip_minutes * 60
+            else:
+                drip_seconds = 0
 
             for url in video_urls:
                 for _ in range(views_per_video):
                     assigned_identity = identities[identity_idx % len(identities)]
+
+                    # Stagger execution time across the drip window
+                    if drip_seconds > 0:
+                        delay = (identity_idx / total_tasks_needed) * drip_seconds
+                        delay += _random.uniform(-30, 30)  # jitter
+                        delay = max(0, delay)
+                        eta = datetime.utcnow() + timedelta(seconds=delay)
+                    else:
+                        eta = None
+
                     identity_idx += 1
 
                     child = Task(
@@ -164,20 +181,23 @@ def browser_profile_boost(self, task_id: int, profile_url: str, views_per_video:
                             "parent_task_id": task_id,
                             "identity_id": assigned_identity.id,
                             "identity_username": assigned_identity.username,
+                            "scheduled_at": eta.isoformat() if eta else None,
                         },
                     )
                     session.add(child)
                     session.commit()
                     session.refresh(child)
 
+                    send_kwargs = {
+                        "task_id": child.id,
+                        "target_url": url,
+                        "count": 1,
+                        "identity_id": assigned_identity.id,
+                    }
                     celery_task = celery_app.send_task(
                         "app.tasks.browser.view_boost",
-                        kwargs={
-                            "task_id": child.id,
-                            "target_url": url,
-                            "count": 1,
-                            "identity_id": assigned_identity.id,
-                        },
+                        kwargs=send_kwargs,
+                        eta=eta,
                     )
                     child.status = "QUEUED"
                     child.celery_task_id = celery_task.id
