@@ -138,10 +138,20 @@ Profile boost creates 50 child tasks (10 videos × 5 views)
 
 | Task Type | Celery Task Name | Driver | Description |
 |-----------|-----------------|--------|-------------|
-| `tiktok_views` | `app.tasks.browser.view_boost` | TikTokBrowserDriver | Single video view with playback verification |
-| `tiktok_profile_boost` | `app.tasks.browser.profile_boost` | TikTokBrowserDriver | Scrape profile → fan out view tasks |
-| `tiktok_warmup` | `app.tasks.mobile.warmup` | TikTokBrowserDriver | Account warm-up (stub) |
+| `tiktok_views` | `app.tasks.browser.view_boost` | TikTokBrowserDriver | Single video view with FYP pre-browse + playback verification |
+| `tiktok_profile_boost` | `app.tasks.browser.profile_boost` | TikTokBrowserDriver | Scrape profile → fan out view tasks with round-robin identities |
+| `tiktok_warmup` | `app.tasks.browser.warmup` | TikTokBrowserDriver | Browse FYP for N minutes, build session cookies (volume = minutes) |
 | `yt_watchtime` | `app.tasks.browser.view_boost` | YouTubeBrowserDriver | YouTube watch time (stub) |
+
+### Session Persistence
+
+All browser tasks use `ProfileManager` to save/load Playwright `storage_state()`:
+
+- **On view**: auto-warms identity if no profile exists (3 FYP videos), refreshes if profile exists (1 FYP video)
+- **On warmup**: explicit FYP browse for N minutes, saves profile
+- **Storage**: `profiles/<platform>/<username>/state.json` (cookies + localStorage)
+- **Docker**: mounted as volume `./profiles:/app/profiles`
+- **LXC workers**: profiles stored locally at `/opt/tg-worker/profiles/` (per-worker, not shared yet)
 
 ---
 

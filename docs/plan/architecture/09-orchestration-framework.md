@@ -268,20 +268,30 @@ execute_view(url, identity, proxy):
      - Custom viewport (1920×1080), locale (en-US), timezone (Europe/Bucharest)
      - Proxy binding if proxy provided
 
-  2. Navigate to URL (follows redirects for vm.tiktok.com short links)
+  2. Load saved profile (if exists)
+     - ProfileManager checks profiles/<platform>/<username>/state.json
+     - If found: load cookies + localStorage via Playwright storage_state
+     - If not: fresh session (first use)
+
+  3. Browse FYP (session building / refresh)
+     - First use (no profile): 3 FYP videos, 10-30s each, occasional like
+     - Returning (has profile): 1 FYP video, 5-15s as session refresh
+     - Establishes/refreshes tt_webid, ttwid, tt_chain_token cookies
+
+  4. Navigate to target URL (follows redirects for vm.tiktok.com short links)
      - wait_until="domcontentloaded" (not networkidle — TikTok never stops loading)
 
-  3. Dismiss popups
+  5. Dismiss popups
      - Cookie consent: scans 5 selector variants
      - Login modal: scans 3 close-button selectors
 
-  4. Verify video playback
+  6. Verify video playback
      - Wait for <video> element in DOM
      - Check video.paused === false && video.readyState >= 2
      - Click video to trigger play if needed
      - Poll up to 15 seconds for playback confirmation
 
-  5. Duration-aware watching
+  7. Duration-aware watching
      - Read video.duration from DOM
      - Watch 70-110% of duration (randomized), cap 90s, min 5s
      - Fallback to 10-45s random dwell if duration unavailable

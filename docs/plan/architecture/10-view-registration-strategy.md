@@ -48,25 +48,41 @@ Identity "andrei.pop95" — subsequent uses:
   5. Update saved profile with new cookies
 ```
 
-**Implementation:**
+**Implementation (COMPLETED 2026-04-22):**
 
-| Component | Change |
-|-----------|--------|
-| `Identity` model | Add `profile_path` field (path to saved browser profile) |
-| `TikTokBrowserDriver` | Load/save browser context state (cookies + localStorage) |
-| New: `warmup` task | Browse FYP for N minutes to build session trust |
-| `execute_view` | Browse FYP 10-20s before navigating to target |
-| Docker volume | Mount `profiles/` directory for persistence across restarts |
-| LXC workers | Sync profiles from control plane or shared NFS |
+| Component | Status | Details |
+|-----------|--------|---------|
+| `ProfileManager` service | Done | `app.services.profile_manager` — save/load Playwright `storage_state()` |
+| `TikTokBrowserDriver` | Done | `_create_context()` loads profile, `_save_profile()` saves after view |
+| `browser_warmup` Celery task | Done | `app.tasks.browser.warmup` — explicit FYP browse for N minutes |
+| `execute_view` auto-warmup | Done | First use: 3 FYP videos, returning: 1 FYP video before target |
+| Docker volume | Done | `./profiles:/app/profiles` mounted on worker container |
+| LXC workers | Pending | Profiles created locally; need rsync/NFS for shared profiles |
+
+**Two warmup modes:**
+
+1. **Explicit warmup** — dispatch `tiktok_warmup` task, browses FYP for N minutes
+   ```
+   POST /dispatch {"task_type": "tiktok_warmup", "target_url": "warmup", "volume": 3}
+   → volume = minutes of FYP browsing
+   → warms up 1 identity (pre-assigned at dispatch)
+   ```
+
+2. **Auto-warmup on first view** — built into `execute_view`, no separate task needed
+   ```
+   Identity has no saved profile → browse 3 FYP videos (10-30s each) before target
+   Identity has saved profile → browse 1 FYP video (5-15s) as session refresh
+   ```
+
+Most use cases don't need explicit warmup. The auto-warmup handles it transparently — every identity gets warmed on first use and refreshed on subsequent uses.
 
 **Profile storage structure:**
 ```
-profiles/
+profiles/                          # gitignored, Docker volume mounted
 ├── tiktok/
 │   ├── andrei.pop95/
-│   │   ├── cookies.json        # Browser cookies
-│   │   ├── local_storage.json  # localStorage data
-│   │   └── metadata.json       # Last used, warm-up status, etc.
+│   │   ├── state.json            # Playwright storage_state (cookies + localStorage)
+│   │   └── metadata.json         # Last saved timestamp
 │   ├── maria_ionescu/
 │   │   └── ...
 │   └── ...
@@ -74,19 +90,20 @@ profiles/
     └── ...
 ```
 
-**Warm-up sequence (first use of identity):**
+**Auto-warmup sequence (first use of identity via execute_view):**
 ```
 1. Launch stealth browser with identity's user agent
-2. Navigate to https://www.tiktok.com/foryou
-3. Dismiss cookie consent + login popups
-4. Watch 3-5 random videos on FYP (scroll, dwell 10-30s each)
-5. Perform 1-2 random likes
-6. Total session: 2-5 minutes
-7. Save cookies + localStorage to profile directory
-8. Mark identity as "warmed up" in database
+2. Check ProfileManager: no saved profile exists
+3. Navigate to https://www.tiktok.com/foryou
+4. Dismiss cookie consent + login popups
+5. Watch 3 random FYP videos (10-30s each, occasional like at 10% chance)
+6. TikTok sets cookies: tt_webid, tt_chain_token, ttwid, etc.
+7. Navigate to target video URL
+8. Watch with BehavioralDNA (duration-aware, interactions)
+9. Save cookies + localStorage via Playwright storage_state → profiles/tiktok/<username>/state.json
 ```
 
-**View execution with profile (subsequent uses):**
+**Returning identity sequence (subsequent uses via execute_view):**
 ```
 1. Launch stealth browser, load saved cookies from profile
 2. Navigate to https://www.tiktok.com/foryou
