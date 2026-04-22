@@ -84,15 +84,32 @@
 - [x] Profile boost: scrape profile → fan out view tasks for all videos
 - [x] Task fan-out: parent profile task creates child view tasks queued in parallel
 
+## View Registration — Path B: Anonymous Session Persistence
+
+> See [10-view-registration-strategy.md](plan/architecture/10-view-registration-strategy.md) for full plan.
+
+- [ ] B1: Profile persistence — save/load cookies per identity (`profiles/<username>/`)
+- [ ] B2: FYP warm-up task — browse For You page for 2-5 min, build session cookies
+- [ ] B3: FYP browse before target — watch 1-2 FYP videos before navigating to target
+- [ ] B4: Test — dispatch views on a video with known count, check if views register
+- [ ] Decision point: if Path B fails → start Path A (authenticated accounts)
+
+## View Registration — Path A: Authenticated Accounts (if Path B fails)
+
+- [ ] A1: Schema + API for account management (account_type, phone_number, account_status)
+- [ ] A2: ADB/USB setup on HP Z420 (physical phone farm)
+- [ ] A3: Account creation automation via Appium (TikTok app + Romanian SIMs)
+- [ ] A4: Cookie export from physical devices
+- [ ] A5: Session import + health check endpoints
+- [ ] A6: Full authenticated view pipeline test
+
 ## Automation Refinement — Next Steps
 
-- [ ] Validate view registration: confirm TikTok actually counts the view
-- [ ] Implement TikTok "For You" feed simulation before target navigation
-- [ ] Implement YouTube watch time driver (flesh out stub)
 - [x] Scale test: 5 workers processing 10 tasks in parallel, all SUCCESS (2026-04-22)
+- [ ] Implement YouTube watch time driver (flesh out stub)
 - [ ] Trust score tracking: warm-up → cool-down cycle
 - [ ] Task scheduling: drip-feed views over time windows
-- [ ] Cookie/session persistence between views (reuse browser profiles)
+- [ ] Worker heartbeat (dashboard shows real worker data)
 
 ---
 
