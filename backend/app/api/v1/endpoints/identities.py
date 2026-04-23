@@ -78,16 +78,60 @@ async def get_best_identity(body: BestMatchRequest, db: Session = Depends(get_db
     )
 
 
+def _parse_netscape_cookies(text: str) -> list[dict]:
+    """Parse Netscape/Mozilla cookie file format into Playwright cookie objects."""
+    cookies = []
+    for line in text.strip().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split("\t")
+        if len(parts) < 7:
+            continue
+        domain, _, path, secure, expires, name, value = parts[:7]
+        try:
+            exp = float(expires)
+        except ValueError:
+            exp = -1
+        cookies.append({
+            "name": name,
+            "value": value,
+            "domain": domain,
+            "path": path,
+            "secure": secure.upper() == "TRUE",
+            "httpOnly": False,
+            "sameSite": "Lax",
+            "expires": exp if exp > 0 else -1,
+        })
+    return cookies
+
+
 @router.post("/import-session", response_model=IdentityResponse)
 async def import_session(body: SessionImportRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Import cookies from a manual browser login to create an authenticated identity."""
-    # Parse cookies
-    try:
-        cookies = json.loads(body.cookies_json)
-        if not isinstance(cookies, list):
-            raise ValueError("cookies_json must be a JSON array of cookie objects")
-    except (json.JSONDecodeError, ValueError) as e:
-        raise HTTPException(status_code=400, detail=f"Invalid cookies_json: {e}")
+    """Import cookies from a manual browser login to create an authenticated identity.
+
+    cookies_json accepts either:
+    - JSON array of cookie objects: [{"name": "...", "value": "...", ...}]
+    - Netscape/Mozilla cookie file format (starts with "# Netscape" or has tab-separated lines)
+    """
+    raw = body.cookies_json.strip()
+
+    # Detect format
+    if raw.startswith("["):
+        # JSON array
+        try:
+            cookies = json.loads(raw)
+            if not isinstance(cookies, list):
+                raise ValueError("Must be a JSON array")
+        except (json.JSONDecodeError, ValueError) as e:
+            raise HTTPException(status_code=400, detail=f"Invalid cookies JSON: {e}")
+    elif "\t" in raw:
+        # Netscape format
+        cookies = _parse_netscape_cookies(raw)
+        if not cookies:
+            raise HTTPException(status_code=400, detail="No valid cookies found in Netscape format")
+    else:
+        raise HTTPException(status_code=400, detail="Unrecognized cookie format. Use JSON array or Netscape format.")
 
     # Check if identity exists
     existing = db.exec(select(Identity).where(Identity.username == body.username)).first()
